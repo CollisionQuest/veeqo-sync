@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Veeqo → QuickBase Sync</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{--bg:#0f1117;--s:#181c27;--s2:#1e2433;--b:#2a3045;--a:#00c2a8;--t:#e8eaf0;--m:#6b7490;--ok:#22c55e;--er:#ef4444;--w:#f59e0b}
+  body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--t);padding:24px;font-size:13px;min-height:100vh}
+  h1{font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--a);text-transform:uppercase;letter-spacing:.1em;margin-bottom:20px;display:flex;align-items:center;gap:10px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--a);box-shadow:0 0 8px var(--a);animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+  .card{background:var(--s);border:1px solid var(--b);border-radius:8px;padding:16px}
+  .card-title{font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--m);margin-bottom:12px;display:flex;align-items:center;gap:6px}
+  .card-title::before{content:'';display:inline-block;width:3px;height:10px;background:var(--a);border-radius:2px}
+  label{display:block;font-size:10px;color:var(--m);font-family:'IBM Plex Mono',monospace;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em}
+  input,select{width:100%;background:var(--s2);border:1px solid var(--b);border-radius:5px;color:var(--t);font-family:'IBM Plex Mono',monospace;font-size:11px;padding:8px 10px;outline:none;margin-bottom:10px;transition:border .2s}
+  input:focus,select:focus{border-color:var(--a);box-shadow:0 0 0 2px rgba(0,194,168,.1)}
+  input[readonly]{opacity:.45;cursor:default}
+  select option{background:var(--s2)}
+  .btns{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:11px 20px;border-radius:6px;border:none;cursor:pointer;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;transition:all .2s;white-space:nowrap}
+  .btn-fetch{background:var(--a);color:#0f1117}
+  .btn-fetch:hover:not(:disabled){background:#00d9bc;box-shadow:0 0 18px rgba(0,194,168,.3)}
+  .btn-sync{background:#6366f1;color:#fff}
+  .btn-sync:hover:not(:disabled){background:#818cf8;box-shadow:0 0 18px rgba(99,102,241,.3)}
+  .btn-sm{background:var(--s2);border:1px solid var(--b);color:var(--t);padding:8px 14px;font-size:11px}
+  .btn-sm:hover{border-color:var(--a);color:var(--a)}
+  .btn:disabled{opacity:.35;cursor:not-allowed}
+  .summary{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px}
+  .chip{background:var(--s);border:1px solid var(--b);border-radius:7px;padding:12px 8px;text-align:center}
+  .chip-n{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:var(--a)}
+  .chip-n.ok{color:var(--ok)}.chip-n.er{color:var(--er)}.chip-n.wn{color:var(--w)}
+  .chip-l{font-size:10px;color:var(--m);text-transform:uppercase;letter-spacing:.04em;margin-top:3px}
+  .progress-bar{height:3px;background:var(--b);border-radius:2px;margin-bottom:14px;overflow:hidden}
+  .progress-fill{height:100%;background:linear-gradient(90deg,var(--a),#6366f1);border-radius:2px;transition:width .4s;width:0}
+  .log{background:#0a0c12;border:1px solid var(--b);border-radius:8px;padding:14px;height:180px;overflow-y:auto;margin-bottom:14px;font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:1.9}
+  .ok{color:var(--ok)}.er{color:var(--er)}.inf{color:var(--a)}.wn{color:var(--w)}.dim{color:var(--m)}
+  .tbl-wrap{background:var(--s);border:1px solid var(--b);border-radius:8px;overflow:hidden}
+  .tbl-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--b)}
+  .tbl-title{font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--m)}
+  .tbl-scroll{max-height:420px;overflow-y:auto}
+  table{width:100%;border-collapse:collapse;font-size:11px}
+  th{font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--m);padding:8px 12px;background:var(--s2);border-bottom:1px solid var(--b);text-align:left;position:sticky;top:0;z-index:1}
+  td{padding:9px 12px;border-bottom:1px solid rgba(42,48,69,.4);vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:rgba(0,194,168,.02)}
+  .pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600}
+  .p-q{background:rgba(107,116,144,.2);color:var(--m);border:1px solid rgba(107,116,144,.3)}
+  .p-ok{background:rgba(34,197,94,.15);color:var(--ok);border:1px solid rgba(34,197,94,.3)}
+  .p-er{background:rgba(239,68,68,.15);color:var(--er);border:1px solid rgba(239,68,68,.3)}
+  .p-wn{background:rgba(245,158,11,.15);color:var(--w);border:1px solid rgba(245,158,11,.3)}
+  .ch-amazon{color:#ff9900;font-weight:600}
+  .ch-shopify{color:#96bf48;font-weight:600}
+  .ch-ebay{color:#e53238;font-weight:600}
+  .ch-etsy{color:#f56400;font-weight:600}
+  .ch-walmart{color:#0071ce;font-weight:600}
+  .empty{text-align:center;color:var(--m);padding:32px;font-family:'IBM Plex Mono',monospace;font-size:11px}
+  @media(max-width:700px){.grid{grid-template-columns:1fr}.summary{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+
+<h1><div class="dot"></div>Veeqo → QuickBase · All Channels Sync</h1>
+
+<div class="grid">
+  <div class="card">
+    <div class="card-title">Veeqo Config</div>
+    <label>API Key</label>
+    <input type="password" id="veeqoKey" value="Vqt/372a03073ee494f6fd22e95114b275d7">
+    <label>Order Status</label>
+    <select id="orderStatus">
+      <option value="awaiting_fulfillment">Awaiting Fulfillment</option>
+      <option value="awaiting_payment">Awaiting Payment</option>
+      <option value="shipped">Shipped</option>
+      <option value="all">All Orders</option>
+    </select>
+    <label>Max Orders to Fetch</label>
+    <input type="number" id="maxOrders" value="50" min="1" max="200">
+  </div>
+  <div class="card">
+    <div class="card-title">QuickBase Config</div>
+    <label>User Token</label>
+    <input type="password" id="qbToken" value="b4avcr_mcrg_0_dyke5idv777tzbvuzj72dt4dtnr">
+    <label>Realm</label>
+    <input value="carlgarcia.quickbase.com" readonly>
+    <label>Table ID</label>
+    <input value="b4avcr_mcrg_0_cidzrxbdyibdmud6cd29rcp5znwa" readonly style="font-size:10px">
+  </div>
+</div>
+
+<div class="btns">
+  <button class="btn btn-fetch" id="btnFetch" onclick="fetchOrders()">⬇ Fetch from Veeqo</button>
+  <button class="btn btn-sync" id="btnSync" onclick="syncAll()" disabled>⟳ Push to QuickBase</button>
+  <button class="btn btn-sm" onclick="clearAll()">✕ Clear</button>
+  <button class="btn btn-sm" id="btnCSV" onclick="exportCSV()" style="display:none">↓ CSV</button>
+</div>
+
+<div class="progress-bar"><div class="progress-fill" id="prog"></div></div>
+
+<div class="summary">
+  <div class="chip"><div class="chip-n" id="sTotal">0</div><div class="chip-l">Fetched</div></div>
+  <div class="chip"><div class="chip-n ok" id="sSynced">0</div><div class="chip-l">Synced</div></div>
+  <div class="chip"><div class="chip-n er" id="sFailed">0</div><div class="chip-l">Failed</div></div>
+  <div class="chip"><div class="chip-n wn" id="sSkipped">0</div><div class="chip-l">Skipped</div></div>
+  <div class="chip"><div class="chip-n" id="sChannels" style="font-size:10px;padding-top:6px">—</div><div class="chip-l">Channels</div></div>
+</div>
+
+<div class="log" id="log"><span class="dim">// Ready. Click "Fetch from Veeqo" to load all orders.</span></div>
+
+<div class="tbl-wrap">
+  <div class="tbl-head">
+    <span class="tbl-title">Orders</span>
+    <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--m)" id="orderCount">0 orders</span>
+  </div>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr>
+        <th>#</th><th>Order ID</th><th>Channel</th><th>Customer</th>
+        <th>Date</th><th>SKU(s)</th><th>Total</th><th>Status</th>
+      </tr></thead>
+      <tbody id="tbody">
+        <tr><td colspan="8"><div class="empty">// No orders loaded yet — click Fetch from Veeqo</div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const QB_REALM = "carlgarcia.quickbase.com";
+const QB_TABLE = "b4avcr_mcrg_0_cidzrxbdyibdmud6cd29rcp5znwa";
+const FID = { date:6, po:35, status:52, company:75, ecomInvoice:73, notes:50 };
+
+let orders = [], qbStatus = {}, synced=0, failed=0, skipped=0;
+
+const BASE = window.location.origin;
+
+function log(msg, cls='inf') {
+  const d = document.getElementById('log');
+  const el = document.createElement('div');
+  el.className = cls; el.textContent = msg;
+  d.appendChild(el); d.scrollTop = d.scrollHeight;
+}
+
+function setProgress(p) { document.getElementById('prog').style.width = p + '%'; }
+
+function clearAll() {
+  orders=[]; qbStatus={}; synced=0; failed=0; skipped=0;
+  document.getElementById('log').innerHTML = '<span class="dim">// Cleared.</span>';
+  document.getElementById('tbody').innerHTML = '<tr><td colspan="8"><div class="empty">// No orders loaded yet</div></td></tr>';
+  ['sTotal','sSynced','sFailed','sSkipped'].forEach(id => document.getElementById(id).textContent='0');
+  document.getElementById('sChannels').textContent='—';
+  document.getElementById('orderCount').textContent='0 orders';
+  document.getElementById('btnSync').disabled=true;
+  document.getElementById('btnCSV').style.display='none';
+  setProgress(0);
+}
+
+function channelInfo(o) {
+  const ch = (o.channel?.name || o.channel_type || '').toLowerCase();
+  if (ch.includes('amazon'))  return {label:'Amazon',  cls:'ch-amazon'};
+  if (ch.includes('shopify')) return {label:'Shopify', cls:'ch-shopify'};
+  if (ch.includes('ebay'))    return {label:'eBay',    cls:'ch-ebay'};
+  if (ch.includes('etsy'))    return {label:'Etsy',    cls:'ch-etsy'};
+  if (ch.includes('walmart')) return {label:'Walmart', cls:'ch-walmart'};
+  return {label: o.channel?.name || 'Other', cls:''};
+}
+
+function companyName(o) {
+  const {label} = channelInfo(o);
+  const map = {
+    Amazon:'eCommerce- Amazon (Collision Quest)',
+    Shopify:'eCommerce- Shopify (Collision Quest)',
+    eBay:'eCommerce- eBay (Collision Quest)',
+    Etsy:'eCommerce- Etsy (Collision Quest)',
+    Walmart:'eCommerce- Walmart (Collision Quest)'
+  };
+  return map[label] || `eCommerce- ${label} (Collision Quest)`;
+}
+
+function fmtDate(s) {
+  if (!s) return '';
+  const d = new Date(s);
+  return `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}`;
+}
+
+function fmtISO(s) {
+  if (!s) return '';
+  const d = new Date(s);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function buildNotes(o) {
+  const addr = o.deliver_to || {};
+  const ch = channelInfo(o).label;
+  const lines = [
+    `Order ID: ${o.channel_order_id || o.number || o.id}`,
+    `Channel: ${ch}`,
+    `Order date: ${fmtDate(o.created_at)}`,
+    `Ship by: ${fmtDate(o.required_ship_date || o.created_at)}`,
+    `Shipping: ${o.requested_shipping || 'Standard'}`,
+    '',
+    '--- Customer ---',
+    `Name: ${[addr.first_name, addr.last_name].filter(Boolean).join(' ')}`,
+    addr.company ? `Company: ${addr.company}` : null,
+    `Address: ${addr.address1 || ''}`,
+    addr.address2 ? `         ${addr.address2}` : null,
+    `${addr.city || ''}, ${addr.state || ''} ${addr.zip || ''}`,
+    addr.country || '',
+    addr.phone ? `Phone: ${addr.phone}` : null,
+    o.customer?.email ? `Email: ${o.customer.email}` : null,
+    '',
+    '--- Items ---',
+    ...(o.line_items || []).flatMap(li => [
+      `Item: ${li.sellable?.title || li.product_title || 'Unknown'}`,
+      `SKU: ${li.sellable?.sku_code || li.sku || '—'}`,
+      `Qty: ${li.quantity || 1}   Price: $${parseFloat(li.price||0).toFixed(2)}`
+    ]),
+    '',
+    `Order Total: $${parseFloat(o.total_price||0).toFixed(2)}`
+  ].filter(l => l !== null).join('\n');
+  return lines;
+}
+
+function renderTable() {
+  const tbody = document.getElementById('tbody');
+  document.getElementById('orderCount').textContent = orders.length + ' orders';
+  document.getElementById('sTotal').textContent = orders.length;
+  document.getElementById('sSynced').textContent = synced;
+  document.getElementById('sFailed').textContent = failed;
+  document.getElementById('sSkipped').textContent = skipped;
+
+  if (!orders.length) {
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty">// No orders loaded yet</div></td></tr>';
+    return;
+  }
+
+  const channels = [...new Set(orders.map(o => channelInfo(o).label))];
+  document.getElementById('sChannels').textContent = channels.join(', ');
+
+  tbody.innerHTML = orders.map((o,i) => {
+    const ch = channelInfo(o);
+    const s = qbStatus[o.id];
+    const pill = s==='ok'  ? '<span class="pill p-ok">✓ Synced</span>'
+               : s==='skip'? '<span class="pill p-wn">~ Exists</span>'
+               : s         ? `<span class="pill p-er" title="${s}">✕ Failed</span>`
+                           : '<span class="pill p-q">Queued</span>';
+    const addr = o.deliver_to || {};
+    const customer = [addr.first_name, addr.last_name].filter(Boolean).join(' ') || '—';
+    const skus = (o.line_items||[]).map(li => li.sellable?.sku_code || li.sku || '?').join(', ');
+    return `<tr>
+      <td style="color:var(--m)">${i+1}</td>
+      <td style="color:var(--a);font-size:10px;font-family:'IBM Plex Mono',monospace">${o.channel_order_id||o.number||o.id}</td>
+      <td><span class="${ch.cls}">${ch.label}</span></td>
+      <td>${customer}</td>
+      <td style="font-family:'IBM Plex Mono',monospace">${fmtDate(o.created_at)}</td>
+      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'IBM Plex Mono',monospace;font-size:10px" title="${skus}">${skus}</td>
+      <td style="color:var(--ok);font-family:'IBM Plex Mono',monospace">$${parseFloat(o.total_price||0).toFixed(2)}</td>
+      <td>${pill}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function fetchOrders() {
+  const key = document.getElementById('veeqoKey').value.trim();
+  const status = document.getElementById('orderStatus').value;
+  const max = parseInt(document.getElementById('maxOrders').value) || 50;
+  if (!key) { log('ERROR: Enter Veeqo API key', 'er'); return; }
+
+  document.getElementById('btnFetch').disabled = true;
+  orders=[]; qbStatus={}; synced=0; failed=0; skipped=0;
+  document.getElementById('log').innerHTML='';
+  log('Connecting to Veeqo...', 'inf');
+  setProgress(5);
+
+  try {
+    const pageSize = Math.min(max, 50);
+    const totalPages = Math.ceil(max / pageSize);
+    let all = [];
+
+    for (let page = 1; page <= totalPages; page++) {
+      log(`Fetching page ${page} of ${totalPages}...`, 'dim');
+      const params = new URLSearchParams({ page_size: pageSize, page, status });
+      const resp = await fetch(`${BASE}/api/veeqo/orders?${params}`, {
+        headers: { 'x-veeqo-key': key }
+      });
+      if (!resp.ok) {
+        const err = await resp.json();
+        throw new Error(err.error || `HTTP ${resp.status}`);
+      }
+      const data = await resp.json();
+      if (!Array.isArray(data) || !data.length) break;
+      all = all.concat(data);
+      log(`  Page ${page}: ${data.length} orders received`, 'ok');
+      setProgress(5 + (page/totalPages)*45);
+      if (data.length < pageSize) break;
+    }
+
+    orders = all.slice(0, max);
+    log(`✓ Fetched ${orders.length} total orders from Veeqo`, 'ok');
+
+    // Channel breakdown
+    const counts = {};
+    orders.forEach(o => { const c = channelInfo(o).label; counts[c]=(counts[c]||0)+1; });
+    Object.entries(counts).forEach(([c,n]) => log(`  ${c}: ${n} orders`, 'dim'));
+
+    renderTable();
+    setProgress(50);
+    document.getElementById('btnSync').disabled = false;
+    document.getElementById('btnCSV').style.display = 'inline-flex';
+
+  } catch(e) {
+    log('ERROR: ' + e.message, 'er');
+  }
+  document.getElementById('btnFetch').disabled = false;
+}
+
+async function syncAll() {
+  const qbToken = document.getElementById('qbToken').value.trim();
+  if (!qbToken) { log('ERROR: Enter QuickBase token', 'er'); return; }
+  if (!orders.length) { log('No orders to sync', 'wn'); return; }
+
+  document.getElementById('btnSync').disabled = true;
+  synced=0; failed=0; skipped=0;
+  log('', 'dim');
+  log(`Pushing ${orders.length} orders to QuickBase...`, 'inf');
+
+  for (let i = 0; i < orders.length; i++) {
+    const o = orders[i];
+    const orderId = o.channel_order_id || o.number || String(o.id);
+    log(`[${i+1}/${orders.length}] ${orderId} (${channelInfo(o).label})...`, 'dim');
+
+    try {
+      const payload = {
+        to: QB_TABLE,
+        data: [{
+          [FID.date]:        { value: fmtISO(o.created_at) },
+          [FID.po]:          { value: orderId },
+          [FID.status]:      { value: 'Open' },
+          [FID.company]:     { value: companyName(o) },
+          [FID.ecomInvoice]: { value: orderId },
+          [FID.notes]:       { value: buildNotes(o) }
+        }]
+      };
+
+      const resp = await fetch(`${BASE}/api/quickbase/records`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-qb-token': qbToken,
+          'x-qb-realm': QB_REALM
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.message || `HTTP ${resp.status}`);
+      const recId = data?.metadata?.createdRecordIds?.[0] ?? '?';
+      qbStatus[o.id] = 'ok'; synced++;
+      log(`  ✓ QB record #${recId} created`, 'ok');
+
+    } catch(e) {
+      qbStatus[o.id] = e.message; failed++;
+      log(`  ✕ ${e.message}`, 'er');
+    }
+
+    renderTable();
+    setProgress(50 + ((i+1)/orders.length)*50);
+    await new Promise(r => setTimeout(r, 120));
+  }
+
+  setProgress(100);
+  log('', 'dim');
+  log(`COMPLETE: ${synced} synced · ${failed} failed · ${skipped} skipped`, synced>0?'ok':'er');
+  document.getElementById('btnSync').disabled = false;
+}
+
+function exportCSV() {
+  const rows = [['Order ID','Channel','Customer','Date','SKUs','Total','QB Status']];
+  orders.forEach(o => {
+    const addr = o.deliver_to||{};
+    const s = qbStatus[o.id];
+    rows.push([
+      o.channel_order_id||o.number||o.id,
+      channelInfo(o).label,
+      [addr.first_name,addr.last_name].filter(Boolean).join(' '),
+      fmtDate(o.created_at),
+      (o.line_items||[]).map(li=>li.sellable?.sku_code||li.sku||'?').join('; '),
+      `$${parseFloat(o.total_price||0).toFixed(2)}`,
+      s==='ok'?'Synced':s==='skip'?'Already Exists':s?'Failed: '+s:'Pending'
+    ]);
+  });
+  const csv = rows.map(r=>r.map(v=>'"'+(v||'').toString().replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download='veeqo_orders_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+}
+</script>
+</body>
+</html>
