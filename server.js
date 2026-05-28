@@ -18,8 +18,15 @@ app.get('/api/veeqo/orders', async (req, res) => {
     if (status && status !== 'all') url += `&status=${status}`;
 
     const resp = await fetch(url, { headers: { 'x-api-key': apiKey } });
-    const data = await resp.json();
-    res.status(resp.status).json(data);
+   const text = await resp.text();
+console.log('QB STATUS:', resp.status);
+console.log('QB RESPONSE:', text.slice(0, 500));
+try {
+  const data = JSON.parse(text);
+  res.status(resp.status).json(data);
+} catch {
+  res.status(resp.status).json({ error: text });
+}
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
