@@ -36,8 +36,12 @@ app.post('/api/quickbase/records', async (req, res) => {
       },
       body: JSON.stringify(req.body)
     });
-    const data = await resp.json();
-    res.status(resp.status).json(data);
+    const text = await resp.text();
+    try {
+      res.status(resp.status).json(JSON.parse(text));
+    } catch {
+      res.status(resp.status).json({ error: text });
+    }
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
