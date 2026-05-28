@@ -7,7 +7,6 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Proxy: Veeqo API
 app.get('/api/veeqo/orders', async (req, res) => {
   try {
     const { status, page_size = 50, page = 1 } = req.query;
@@ -15,29 +14,25 @@ app.get('/api/veeqo/orders', async (req, res) => {
     if (!apiKey) return res.status(400).json({ error: 'Missing Veeqo API key' });
     let url = `https://api.veeqo.com/orders?page_size=${page_size}&page=${page}`;
     if (status && status !== 'all') url += `&status=${status}`;
-    console.log('Veeqo URL:', url);
     const resp = await fetch(url, { headers: { 'x-api-key': apiKey } });
     const data = await resp.json();
     res.status(resp.status).json(data);
   } catch (e) {
-    console.error('Veeqo error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
 
-// Proxy: QuickBase insert record
 app.post('/api/quickbase/records', async (req, res) => {
   try {
     const qbToken = req.headers['x-qb-token'];
     const qbRealm = req.headers['x-qb-realm'];
     if (!qbToken || !qbRealm) return res.status(400).json({ error: 'Missing QB credentials' });
 
-    const QB_URL = 'https://api.quickbase.com/v1/records';
-    console.log('Posting to QuickBase:', QB_URL);
-    console.log('Realm:', qbRealm);
+    console.log('TOKEN RECEIVED (first 25 chars):', qbToken.slice(0, 25));
+    console.log('QB Realm:', qbRealm);
     console.log('Payload:', JSON.stringify(req.body).slice(0, 200));
 
-    const resp = await fetch(QB_URL, {
+    const resp = await fetch('https://api.quickbase.com/v1/records', {
       method: 'POST',
       headers: {
         'QB-Realm-Hostname': qbRealm,
@@ -50,7 +45,7 @@ app.post('/api/quickbase/records', async (req, res) => {
 
     const text = await resp.text();
     console.log('QB STATUS:', resp.status);
-    console.log('QB RESPONSE:', text.slice(0, 500));
+    console.log('QB RESPONSE:', text.slice(0, 300));
 
     try {
       res.status(resp.status).json(JSON.parse(text));
@@ -65,3 +60,4 @@ app.post('/api/quickbase/records', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// Updated: ${new Date().toISOString()}
