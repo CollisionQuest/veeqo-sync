@@ -84,7 +84,7 @@
   <div class="card">
     <div class="card-title">QuickBase Config</div>
     <label>User Token</label>
-    <input type="password" id="qbToken" value="b4avcr_mcrg_0_dyke5idv777tzbvuzj72dt4dtnr">
+    <input type="password" id="qbToken" value="b4avcr_mcrg_0_v6hayncag6syty4u5bxmtzmvh">
     <label>Realm</label>
     <input value="carlgarcia.quickbase.com" readonly>
     <label>Table ID</label>
@@ -337,12 +337,9 @@ async function syncAll() {
       const payload = {
         to: QB_TABLE,
         data: [{
-          [FID.date]:        { value: fmtISO(o.created_at) },
-          [FID.po]:          { value: orderId },
-          [FID.status]:      { value: 'Open' },
-          [FID.company]:     { value: companyName(o) },
-          [FID.ecomInvoice]: { value: orderId },
-          [FID.notes]:       { value: buildNotes(o) }
+          "6":  { value: fmtISO(o.created_at) },
+          "35": { value: orderId },
+          "50": { value: buildNotes(o) }
         }]
       };
 
@@ -357,7 +354,7 @@ async function syncAll() {
       });
 
       const data = await resp.json();
-      if (!resp.ok) throw new Error(data.message || `HTTP ${resp.status}`);
+      if (!resp.ok) throw new Error(data.message || data.description || JSON.stringify(data).slice(0,150) || `HTTP ${resp.status}`);
       const recId = data?.metadata?.createdRecordIds?.[0] ?? '?';
       qbStatus[o.id] = 'ok'; synced++;
       log(`  ✓ QB record #${recId} created`, 'ok');
