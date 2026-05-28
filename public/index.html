@@ -1,401 +1,846 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<title>Veeqo → QuickBase Sync</title>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<title>eCommerce → QuickBase Sync</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
-  *{box-sizing:border-box;margin:0;padding:0}
-  :root{--bg:#0f1117;--s:#181c27;--s2:#1e2433;--b:#2a3045;--a:#00c2a8;--t:#e8eaf0;--m:#6b7490;--ok:#22c55e;--er:#ef4444;--w:#f59e0b}
-  body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--t);padding:24px;font-size:13px;min-height:100vh}
-  h1{font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--a);text-transform:uppercase;letter-spacing:.1em;margin-bottom:20px;display:flex;align-items:center;gap:10px}
-  .dot{width:8px;height:8px;border-radius:50%;background:var(--a);box-shadow:0 0 8px var(--a);animation:pulse 2s infinite}
-  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
-  .card{background:var(--s);border:1px solid var(--b);border-radius:8px;padding:16px}
-  .card-title{font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--m);margin-bottom:12px;display:flex;align-items:center;gap:6px}
-  .card-title::before{content:'';display:inline-block;width:3px;height:10px;background:var(--a);border-radius:2px}
-  label{display:block;font-size:10px;color:var(--m);font-family:'IBM Plex Mono',monospace;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em}
-  input,select{width:100%;background:var(--s2);border:1px solid var(--b);border-radius:5px;color:var(--t);font-family:'IBM Plex Mono',monospace;font-size:11px;padding:8px 10px;outline:none;margin-bottom:10px;transition:border .2s}
-  input:focus,select:focus{border-color:var(--a);box-shadow:0 0 0 2px rgba(0,194,168,.1)}
-  input[readonly]{opacity:.45;cursor:default}
-  select option{background:var(--s2)}
-  .btns{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
-  .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:11px 20px;border-radius:6px;border:none;cursor:pointer;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;transition:all .2s;white-space:nowrap}
-  .btn-fetch{background:var(--a);color:#0f1117}
-  .btn-fetch:hover:not(:disabled){background:#00d9bc;box-shadow:0 0 18px rgba(0,194,168,.3)}
-  .btn-sync{background:#6366f1;color:#fff}
-  .btn-sync:hover:not(:disabled){background:#818cf8;box-shadow:0 0 18px rgba(99,102,241,.3)}
-  .btn-sm{background:var(--s2);border:1px solid var(--b);color:var(--t);padding:8px 14px;font-size:11px}
-  .btn-sm:hover{border-color:var(--a);color:var(--a)}
-  .btn:disabled{opacity:.35;cursor:not-allowed}
-  .summary{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px}
-  .chip{background:var(--s);border:1px solid var(--b);border-radius:7px;padding:12px 8px;text-align:center}
-  .chip-n{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:var(--a)}
-  .chip-n.ok{color:var(--ok)}.chip-n.er{color:var(--er)}.chip-n.wn{color:var(--w)}
-  .chip-l{font-size:10px;color:var(--m);text-transform:uppercase;letter-spacing:.04em;margin-top:3px}
-  .progress-bar{height:3px;background:var(--b);border-radius:2px;margin-bottom:14px;overflow:hidden}
-  .progress-fill{height:100%;background:linear-gradient(90deg,var(--a),#6366f1);border-radius:2px;transition:width .4s;width:0}
-  .log{background:#0a0c12;border:1px solid var(--b);border-radius:8px;padding:14px;height:180px;overflow-y:auto;margin-bottom:14px;font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:1.9}
-  .ok{color:var(--ok)}.er{color:var(--er)}.inf{color:var(--a)}.wn{color:var(--w)}.dim{color:var(--m)}
-  .tbl-wrap{background:var(--s);border:1px solid var(--b);border-radius:8px;overflow:hidden}
-  .tbl-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--b)}
-  .tbl-title{font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--m)}
-  .tbl-scroll{max-height:420px;overflow-y:auto}
-  table{width:100%;border-collapse:collapse;font-size:11px}
-  th{font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--m);padding:8px 12px;background:var(--s2);border-bottom:1px solid var(--b);text-align:left;position:sticky;top:0;z-index:1}
-  td{padding:9px 12px;border-bottom:1px solid rgba(42,48,69,.4);vertical-align:middle}
-  tr:last-child td{border-bottom:none}
-  tr:hover td{background:rgba(0,194,168,.02)}
-  .pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600}
-  .p-q{background:rgba(107,116,144,.2);color:var(--m);border:1px solid rgba(107,116,144,.3)}
-  .p-ok{background:rgba(34,197,94,.15);color:var(--ok);border:1px solid rgba(34,197,94,.3)}
-  .p-er{background:rgba(239,68,68,.15);color:var(--er);border:1px solid rgba(239,68,68,.3)}
-  .p-wn{background:rgba(245,158,11,.15);color:var(--w);border:1px solid rgba(245,158,11,.3)}
-  .ch-amazon{color:#ff9900;font-weight:600}
-  .ch-shopify{color:#96bf48;font-weight:600}
-  .ch-ebay{color:#e53238;font-weight:600}
-  .ch-etsy{color:#f56400;font-weight:600}
-  .ch-walmart{color:#0071ce;font-weight:600}
-  .empty{text-align:center;color:var(--m);padding:32px;font-family:'IBM Plex Mono',monospace;font-size:11px}
-  @media(max-width:700px){.grid{grid-template-columns:1fr}.summary{grid-template-columns:repeat(3,1fr)}}
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f1117;--s:#181c27;--s2:#1e2433;--b:#2a3045;
+  --a:#00c2a8;--t:#e8eaf0;--m:#6b7490;
+  --ok:#22c55e;--er:#ef4444;--w:#f59e0b;
+  --amz:#ff9900;--ebay:#e53238;--wmt:#0071ce;--shopify:#96bf48;--etsy:#f56400;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--t);font-size:13px;min-height:100vh;display:flex;flex-direction:column}
+header{display:flex;align-items:center;justify-content:space-between;padding:13px 22px;background:var(--s);border-bottom:1px solid var(--b);flex-shrink:0}
+.hdr-title{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--a);text-transform:uppercase;letter-spacing:.1em;display:flex;align-items:center;gap:10px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--a);box-shadow:0 0 8px var(--a);animation:pulse 2s infinite;flex-shrink:0}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.app{display:flex;flex:1;overflow:hidden;height:calc(100vh - 49px)}
+.sidebar{width:272px;min-width:272px;background:var(--s);border-right:1px solid var(--b);display:flex;flex-direction:column;overflow:hidden}
+.sb-sec{padding:14px 16px;border-bottom:1px solid var(--b)}
+.sec-title{font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--m);margin-bottom:11px;display:flex;align-items:center;gap:6px}
+.sec-title::before{content:'';display:inline-block;width:3px;height:10px;background:var(--a);border-radius:2px}
+label{display:block;font-size:10px;color:var(--m);font-family:'IBM Plex Mono',monospace;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em}
+input,select,textarea{width:100%;background:var(--s2);border:1px solid var(--b);border-radius:5px;color:var(--t);font-family:'IBM Plex Mono',monospace;font-size:11px;padding:7px 10px;outline:none;margin-bottom:9px;transition:border .2s}
+input:focus,select:focus,textarea:focus{border-color:var(--a);box-shadow:0 0 0 2px rgba(0,194,168,.1)}
+input[readonly]{opacity:.45;cursor:default}
+select option{background:var(--s2)}
+textarea{resize:vertical;min-height:90px;line-height:1.55}
+.save-row{display:flex;align-items:center;gap:10px}
+.saved-tag{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ok);opacity:0;transition:opacity .5s}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:12px 16px;border-bottom:1px solid var(--b)}
+.stat{background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:10px 8px;text-align:center}
+.stat-n{font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:600;color:var(--a)}
+.stat-n.ok{color:var(--ok)}.stat-n.er{color:var(--er)}.stat-n.wn{color:var(--w)}
+.stat-l{font-size:10px;color:var(--m);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
+.log-hdr{padding:8px 16px 6px;font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--m);display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--b);flex-shrink:0}
+.log-hdr::before{content:'';display:inline-block;width:3px;height:10px;background:var(--a);border-radius:2px}
+.log{flex:1;overflow-y:auto;padding:10px 16px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;line-height:1.85;background:#0a0c12}
+.log .ok{color:var(--ok)}.log .er{color:var(--er)}.log .inf{color:var(--a)}.log .wn{color:var(--w)}.log .dim{color:var(--m)}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.tabs{display:flex;border-bottom:1px solid var(--b);background:var(--s);padding:0 18px;flex-shrink:0}
+.tab{display:flex;align-items:center;gap:7px;padding:11px 15px;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--m);border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .18s}
+.tab:hover{color:var(--t)}.tab.active{color:var(--t);border-bottom-color:var(--a)}
+.tdot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.panels{padding:14px 18px;border-bottom:1px solid var(--b);background:var(--s2);flex-shrink:0}
+.panel{display:none}.panel.active{display:block}
+.pg3{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;align-items:end}
+.pg4{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;align-items:end}
+.pg2{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+.coming-soon{display:flex;align-items:center;justify-content:center;gap:12px;padding:18px;background:var(--s);border:1px dashed var(--b);border-radius:8px;color:var(--m);font-family:'IBM Plex Mono',monospace;font-size:11px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:9px 17px;border-radius:6px;border:none;cursor:pointer;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;transition:all .18s;white-space:nowrap}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn-teal{background:var(--a);color:#0f1117}
+.btn-teal:hover:not(:disabled){background:#00d9bc;box-shadow:0 0 14px rgba(0,194,168,.3)}
+.btn-purple{background:#6366f1;color:#fff}
+.btn-purple:hover:not(:disabled){background:#818cf8;box-shadow:0 0 14px rgba(99,102,241,.3)}
+.btn-ghost{background:var(--s);border:1px solid var(--b);color:var(--t)}
+.btn-ghost:hover:not(:disabled){border-color:var(--a);color:var(--a)}
+.btn-ebay{background:var(--s);border:1px solid var(--ebay);color:var(--ebay)}
+.btn-ebay:hover:not(:disabled){background:rgba(229,50,56,.08)}
+.btn-gmail{background:var(--s);border:1px solid #ea4335;color:#ea4335}
+.btn-gmail:hover:not(:disabled){background:rgba(234,67,53,.08)}
+.btn-sm{padding:7px 12px;font-size:10px}
+.btn-fee{background:var(--s);border:1px solid var(--w);color:var(--w)}
+.btn-fee:hover:not(:disabled){background:rgba(245,158,11,.08)}
+.orders{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.toolbar{display:flex;align-items:center;gap:9px;padding:9px 18px;border-bottom:1px solid var(--b);background:var(--s);flex-shrink:0}
+.toolbar-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.order-count{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--m)}
+.prog{height:2px;background:var(--b);overflow:hidden;flex-shrink:0}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--a),#6366f1);transition:width .4s;width:0}
+.tbl-wrap{flex:1;overflow-y:auto;min-height:0}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th{font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--m);padding:8px 11px;background:var(--s2);border-bottom:1px solid var(--b);text-align:left;position:sticky;top:0;z-index:1}
+td{padding:8px 11px;border-bottom:1px solid rgba(42,48,69,.4);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(0,194,168,.02)}
+input[type=checkbox]{width:13px;height:13px;margin:0;padding:0;accent-color:var(--a);cursor:pointer}
+.empty-msg{text-align:center;color:var(--m);padding:36px;font-family:'IBM Plex Mono',monospace;font-size:11px}
+.pill{display:inline-block;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600}
+.p-q{background:rgba(107,116,144,.2);color:var(--m);border:1px solid rgba(107,116,144,.3)}
+.p-ok{background:rgba(34,197,94,.15);color:var(--ok);border:1px solid rgba(34,197,94,.3)}
+.p-er{background:rgba(239,68,68,.15);color:var(--er);border:1px solid rgba(239,68,68,.3)}
+.p-wn{background:rgba(245,158,11,.15);color:var(--w);border:1px solid rgba(245,158,11,.3)}
+.p-skip{background:rgba(107,116,144,.12);color:var(--m);border:1px solid rgba(107,116,144,.25)}
+.ch-amazon{color:var(--amz);font-weight:600}.ch-ebay{color:var(--ebay);font-weight:600}
+.ch-walmart{color:var(--wmt);font-weight:600}.ch-shopify{color:var(--shopify);font-weight:600}
+.ch-etsy{color:var(--etsy);font-weight:600}.ch-other{color:var(--m)}
+.fee-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--ok);margin-left:4px;vertical-align:middle;cursor:help}
+.fee-box{background:var(--s);border:1px solid var(--b);border-radius:8px;padding:14px;overflow-y:auto;max-height:160px}
+.fee-item{margin-bottom:8px;padding:8px;background:var(--s2);border-radius:5px}
+.fee-row{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:10px;padding:2px 0}
+.fee-row.total{border-top:1px solid var(--b);margin-top:4px;padding-top:6px;font-weight:600}
 </style>
 </head>
 <body>
+<header>
+  <div class="hdr-title"><div class="dot"></div>eCommerce → QuickBase Sync</div>
+  <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--m)">v2.1 · carlgarcia.quickbase.com</div>
+</header>
+<div class="app">
 
-<h1><div class="dot"></div>Veeqo → QuickBase · All Channels Sync</h1>
-
-<div class="grid">
-  <div class="card">
-    <div class="card-title">Veeqo Config</div>
-    <label>API Key</label>
-    <input type="password" id="veeqoKey" value="Vqt/372a03073ee494f6fd22e95114b275d7">
-    <label>Order Status</label>
-    <select id="orderStatus">
-      <option value="awaiting_fulfillment">Awaiting Fulfillment</option>
-      <option value="awaiting_payment">Awaiting Payment</option>
-      <option value="shipped">Shipped</option>
-      <option value="all">All Orders</option>
-    </select>
-    <label>Max Orders to Fetch</label>
-    <input type="number" id="maxOrders" value="50" min="1" max="200">
-  </div>
-  <div class="card">
-    <div class="card-title">QuickBase Config</div>
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sb-sec">
+    <div class="sec-title">QuickBase Config</div>
     <label>User Token</label>
-    <input type="password" id="qbToken" value="b4avcr_mcrg_0_v6hayncag6syty4u5bxmtzmvh">
+    <input type="password" id="qbToken" placeholder="b4avcr_mcrg_0_...">
     <label>Realm</label>
     <input value="carlgarcia.quickbase.com" readonly>
-    <label>Table ID</label>
-    <input value="b4avcr_mcrg_0_cidzrxbdyibdmud6cd29rcp5znwa" readonly style="font-size:10px">
+    <label>Table</label>
+    <input value="bvgseawft" readonly>
+    <div class="save-row">
+      <button class="btn btn-teal btn-sm" onclick="saveConfig()">Save Credentials</button>
+      <span class="saved-tag" id="savedTag">✓ saved</span>
+    </div>
   </div>
+  <div class="stats-grid">
+    <div class="stat"><div class="stat-n" id="sTotal">0</div><div class="stat-l">Fetched</div></div>
+    <div class="stat"><div class="stat-n" id="sSelected">0</div><div class="stat-l">Selected</div></div>
+    <div class="stat"><div class="stat-n ok" id="sSynced">0</div><div class="stat-l">Synced</div></div>
+    <div class="stat"><div class="stat-n er" id="sFailed">0</div><div class="stat-l">Failed</div></div>
+  </div>
+  <div class="log-hdr">Activity Log</div>
+  <div class="log" id="log"><span class="dim">// Ready. Select a source and fetch orders.</span></div>
 </div>
 
-<div class="btns">
-  <button class="btn btn-fetch" id="btnFetch" onclick="fetchOrders()">⬇ Fetch from Veeqo</button>
-  <button class="btn btn-sync" id="btnSync" onclick="syncAll()" disabled>⟳ Push to QuickBase</button>
-  <button class="btn btn-sm" onclick="clearAll()">✕ Clear</button>
-  <button class="btn btn-sm" id="btnCSV" onclick="exportCSV()" style="display:none">↓ CSV</button>
-</div>
-
-<div class="progress-bar"><div class="progress-fill" id="prog"></div></div>
-
-<div class="summary">
-  <div class="chip"><div class="chip-n" id="sTotal">0</div><div class="chip-l">Fetched</div></div>
-  <div class="chip"><div class="chip-n ok" id="sSynced">0</div><div class="chip-l">Synced</div></div>
-  <div class="chip"><div class="chip-n er" id="sFailed">0</div><div class="chip-l">Failed</div></div>
-  <div class="chip"><div class="chip-n wn" id="sSkipped">0</div><div class="chip-l">Skipped</div></div>
-  <div class="chip"><div class="chip-n" id="sChannels" style="font-size:10px;padding-top:6px">—</div><div class="chip-l">Channels</div></div>
-</div>
-
-<div class="log" id="log"><span class="dim">// Ready. Click "Fetch from Veeqo" to load all orders.</span></div>
-
-<div class="tbl-wrap">
-  <div class="tbl-head">
-    <span class="tbl-title">Orders</span>
-    <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--m)" id="orderCount">0 orders</span>
+<!-- MAIN -->
+<div class="main">
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('veeqo',this)">
+      <span class="tdot" style="background:var(--a)"></span>Veeqo
+    </button>
+    <button class="tab" onclick="switchTab('ebay',this)">
+      <span class="tdot" style="background:var(--ebay)"></span>eBay
+    </button>
+    <button class="tab" onclick="switchTab('walmart',this)">
+      <span class="tdot" style="background:var(--wmt)"></span>Walmart
+    </button>
+    <button class="tab" onclick="switchTab('gmail',this)">
+      <span class="tdot" style="background:#ea4335"></span>Paste Fees
+    </button>
   </div>
-  <div class="tbl-scroll">
-    <table>
-      <thead><tr>
-        <th>#</th><th>Order ID</th><th>Channel</th><th>Customer</th>
-        <th>Date</th><th>SKU(s)</th><th>Total</th><th>Status</th>
-      </tr></thead>
-      <tbody id="tbody">
-        <tr><td colspan="8"><div class="empty">// No orders loaded yet — click Fetch from Veeqo</div></td></tr>
-      </tbody>
-    </table>
+
+  <div class="panels">
+
+    <!-- VEEQO -->
+    <div class="panel active" id="panel-veeqo">
+      <div class="pg3" style="margin-bottom:12px">
+        <div>
+          <label>Veeqo API Key</label>
+          <input type="password" id="veeqoKey" placeholder="Vqt/...">
+        </div>
+        <div>
+          <label>Order Status</label>
+          <select id="orderStatus">
+            <option value="awaiting_fulfillment">Awaiting Fulfillment</option>
+            <option value="awaiting_payment">Awaiting Payment</option>
+            <option value="shipped">Shipped</option>
+            <option value="all">All Orders</option>
+          </select>
+        </div>
+        <div>
+          <label>Max Orders</label>
+          <input type="number" id="maxOrders" value="50" min="1" max="200">
+        </div>
+      </div>
+      <button class="btn btn-teal" id="btnVeeqo" onclick="fetchVeeqo()">⬇ Fetch from Veeqo</button>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--m);margin-left:12px">Green-tagged orders are auto-deselected</span>
+    </div>
+
+    <!-- EBAY -->
+    <div class="panel" id="panel-ebay">
+      <div class="pg4" style="margin-bottom:12px">
+        <div style="grid-column:span 2">
+          <label>eBay OAuth User Token</label>
+          <input type="password" id="ebayToken" placeholder="v^1.1#i^1#f^0#p^1...">
+        </div>
+        <div>
+          <label>From Date</label>
+          <input type="date" id="ebayFrom">
+        </div>
+        <div>
+          <label>To Date</label>
+          <input type="date" id="ebayTo">
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-ebay" id="btnEbay" onclick="fetchEbay()">⬇ Fetch eBay Orders</button>
+        <button class="btn btn-fee" id="btnEbayFees" onclick="fetchEbayFees()" disabled>$ Fetch eBay Fees</button>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--m)" id="ebayFeeStatus"></span>
+      </div>
+    </div>
+
+    <!-- WALMART -->
+    <div class="panel" id="panel-walmart">
+      <div class="coming-soon">
+        <span style="font-size:20px">🔧</span>
+        Walmart Marketplace integration — coming soon.
+      </div>
+    </div>
+
+    <!-- PASTE FEES -->
+    <div class="panel" id="panel-gmail">
+      <div class="pg2">
+        <div>
+          <label>Paste Amazon or eBay Fee Emails / Text</label>
+          <textarea id="emailPaste" placeholder="Paste sold notification emails for Amazon or eBay here. The app extracts fee data and matches it to loaded orders.&#10;&#10;Amazon format: order ID, Item price, Tax, Amazon fees, Marketplace Facilitator Tax, Your earnings&#10;eBay format: order number, Subtotal, Transaction fees, Ad Fee, Order earnings"></textarea>
+          <button class="btn btn-gmail btn-sm" onclick="parseEmails()">⚡ Parse Fee Emails</button>
+        </div>
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--m);margin-bottom:8px">Parsed Results</div>
+          <div class="fee-box" id="feeList">
+            <span style="color:var(--m);font-family:'IBM Plex Mono',monospace;font-size:11px">// Paste emails and click Parse</span>
+          </div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--m);margin-top:6px" id="feeStats"></div>
+        </div>
+      </div>
+    </div>
+
   </div>
+
+  <!-- Orders -->
+  <div class="orders">
+    <div class="toolbar">
+      <input type="checkbox" id="selectAll" title="Select / deselect all" onchange="toggleSelectAll(this.checked)">
+      <span class="order-count" id="orderCount">0 orders</span>
+      <div class="toolbar-right">
+        <button class="btn btn-purple btn-sm" id="btnSync" onclick="pushToQB()" disabled>☁ Push to QuickBase</button>
+        <button class="btn btn-ghost btn-sm" id="btnCSV" onclick="exportCSV()" style="display:none">↓ CSV</button>
+        <button class="btn btn-ghost btn-sm" onclick="clearAll()">✕ Clear</button>
+      </div>
+    </div>
+    <div class="prog"><div class="prog-fill" id="prog"></div></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:30px"></th>
+            <th style="width:28px">#</th>
+            <th style="width:80px">Channel</th>
+            <th>Order ID</th>
+            <th>Customer</th>
+            <th style="width:90px">Date</th>
+            <th>SKU(s)</th>
+            <th style="width:72px">Total</th>
+            <th style="width:100px">Status</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          <tr><td colspan="9"><div class="empty-msg">// Fetch orders from Veeqo or eBay above</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
 </div>
 
 <script>
+// ═══ CONSTANTS ══════════════════════════════════════════════════════════════
 const QB_REALM = "carlgarcia.quickbase.com";
-const QB_TABLE = "b4avcr_mcrg_0_cidzrxbdyibdmud6cd29rcp5znwa";
-const FID = { date:6, po:35, status:52, company:75, ecomInvoice:73, notes:50 };
+const QB_TABLE = "bvgseawft";
+const QB_API   = "https://api.quickbase.com/v1/records";
+const BASE     = window.location.origin;
 
-let orders = [], qbStatus = {}, synced=0, failed=0, skipped=0;
+// Field 74 = "Related Company" FK → table bn36n5cid
+const COMPANY_IDS = {
+  Amazon: 2709, eBay: 2710, Shopify: 2831, Walmart: 3951, Etsy: 3966,
+};
 
-const BASE = window.location.origin;
+// eBay fee type → label mapping
+const EBAY_FEE_LABELS = {
+  FINAL_VALUE_FEE:                   'Transaction fees',
+  FINAL_VALUE_FEE_FIXED_PER_ORDER:   'Transaction fees (fixed)',
+  AD_FEE:                            'Ad Fee',
+  PROMOTED_LISTING_FEE:              'Promoted Listing Fee',
+  LISTING_FEE:                       'Listing fee',
+  BELOW_STANDARD_PERFORMANCE_FEE:    'Performance fee',
+  REGULATORY_OPERATING_FEE:          'Regulatory fee',
+  INTERNATIONAL_FEE:                 'International fee',
+};
 
-function log(msg, cls='inf') {
-  const d = document.getElementById('log');
-  const el = document.createElement('div');
-  el.className = cls; el.textContent = msg;
-  d.appendChild(el); d.scrollTop = d.scrollHeight;
+// ═══ STATE ═══════════════════════════════════════════════════════════════════
+let orders      = [];
+let feeMap      = {};   // orderId → fee object
+let selectedIds = new Set();
+let synced = 0, failed = 0;
+
+// ═══ INIT ════════════════════════════════════════════════════════════════════
+(function init() {
+  try {
+    const s = JSON.parse(localStorage.getItem('ecom_sync') || '{}');
+    if (s.qbToken)   document.getElementById('qbToken').value   = s.qbToken;
+    if (s.veeqoKey)  document.getElementById('veeqoKey').value  = s.veeqoKey;
+    if (s.ebayToken) document.getElementById('ebayToken').value = s.ebayToken;
+  } catch(e) {}
+  const now = new Date(), ago = new Date(now - 30*864e5);
+  document.getElementById('ebayTo').value   = now.toISOString().slice(0,10);
+  document.getElementById('ebayFrom').value = ago.toISOString().slice(0,10);
+})();
+
+function saveConfig() {
+  localStorage.setItem('ecom_sync', JSON.stringify({
+    qbToken:   document.getElementById('qbToken').value,
+    veeqoKey:  document.getElementById('veeqoKey').value,
+    ebayToken: document.getElementById('eb'ebayToken').value,
+  }));
+  const t = document.getElementById('savedTag');
+  t.style.opacity='1'; setTimeout(()=>t.style.opacity='0',2200);
 }
 
-function setProgress(p) { document.getElementById('prog').style.width = p + '%'; }
+// ═══ UI HELPERS ═════════════════════════════════════════════════════════════
+function switchTab(name,btn) {
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  document.getElementById('panel-'+name)?.classList.add('active');
+}
+function log(msg,cls='inf') {
+  const d=document.getElementById('log'), el=document.createElement('div');
+  const ts=new Date().toLocaleTimeString('en-US',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  el.className=cls; el.textContent=`[${ts}] ${msg}`; d.appendChild(el); d.scrollTop=d.scrollHeight;
+}
+function setProgress(p){document.getElementById('prog').style.width=p+'%'}
+function fmtDate(s){if(!s)return'';const d=new Date(s);if(isNaN(d))return s;return`${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}`}
+function fmtISO(s){if(!s)return'';const d=new Date(s);if(isNaN(d))return s;return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+function fmtMoney(v){return v!==null&&v!==undefined?'$'+parseFloat(v).toFixed(2):'—'}
+function chCls(ch){return{Amazon:'ch-amazon',eBay:'ch-ebay',Walmart:'ch-walmart',Shopify:'ch-shopify',Etsy:'ch-etsy'}[ch]||'ch-other'}
 
-function clearAll() {
-  orders=[]; qbStatus={}; synced=0; failed=0; skipped=0;
-  document.getElementById('log').innerHTML = '<span class="dim">// Cleared.</span>';
-  document.getElementById('tbody').innerHTML = '<tr><td colspan="8"><div class="empty">// No orders loaded yet</div></td></tr>';
-  ['sTotal','sSynced','sFailed','sSkipped'].forEach(id => document.getElementById(id).textContent='0');
-  document.getElementById('sChannels').textContent='—';
-  document.getElementById('orderCount').textContent='0 orders';
-  document.getElementById('btnSync').disabled=true;
-  document.getElementById('btnCSV').style.display='none';
-  setProgress(0);
+// ═══ CHANNEL DETECTION ══════════════════════════════════════════════════════
+function detectChannel(raw) {
+  const ch=((raw.channel?.name||raw.channel_type||'')+'').toLowerCase();
+  if(ch.includes('amazon')) return 'Amazon';
+  if(ch.includes('ebay'))   return 'eBay';
+  if(ch.includes('walmart'))return 'Walmart';
+  if(ch.includes('shopify'))return 'Shopify';
+  if(ch.includes('etsy'))   return 'Etsy';
+  return raw.channel?.name||'Other';
 }
 
-function channelInfo(o) {
-  const ch = (o.channel?.name || o.channel_type || '').toLowerCase();
-  if (ch.includes('amazon'))  return {label:'Amazon',  cls:'ch-amazon'};
-  if (ch.includes('shopify')) return {label:'Shopify', cls:'ch-shopify'};
-  if (ch.includes('ebay'))    return {label:'eBay',    cls:'ch-ebay'};
-  if (ch.includes('etsy'))    return {label:'Etsy',    cls:'ch-etsy'};
-  if (ch.includes('walmart')) return {label:'Walmart', cls:'ch-walmart'};
-  return {label: o.channel?.name || 'Other', cls:''};
-}
-
-function companyName(o) {
-  const {label} = channelInfo(o);
-  const map = {
-    Amazon:'eCommerce- Amazon (Collision Quest)',
-    Shopify:'eCommerce- Shopify (Collision Quest)',
-    eBay:'eCommerce- eBay (Collision Quest)',
-    Etsy:'eCommerce- Etsy (Collision Quest)',
-    Walmart:'eCommerce- Walmart (Collision Quest)'
+// ═══ ORDER ADAPTERS ═══════════════════════════════════════════════════════════
+function adaptVeeqo(o) {
+  const channel=detectChannel(o), addr=o.deliver_to||{};
+  return {
+    _id:       String(o.id), source:'veeqo', channel,
+    orderId:   o.channel_order_id||o.number||String(o.id),
+    customer:  [addr.first_name,addr.last_name].filter(Boolean).join(' ')||'—',
+    email:     o.customer?.email||'',
+    date:      fmtISO(o.created_at), dateRaw: o.created_at,
+    lineItems: (o.line_items||[]).map(li=>({
+      sku:   li.sellable?.sku_code||li.sku||'?',
+      title: li.sellable?.title||li.product_title||'Unknown',
+      qty:   li.quantity||1, price: parseFloat(li.price||0)
+    })),
+    total:     parseFloat(o.total_price||0), rawData:o,
+    qbStatus:null, qbRecordId:null,
+    greenTag:  (o.tags||[]).some(t=>t.colour==='#99cc00')
   };
-  return map[label] || `eCommerce- ${label} (Collision Quest)`;
 }
 
-function fmtDate(s) {
-  if (!s) return '';
-  const d = new Date(s);
-  return `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}`;
+function adaptEbay(o) {
+  const ship=(o.fulfillmentStartInstructions||[])[0]?.shippingStep?.shipTo||{};
+  const buyer=o.buyer?.buyerRegistrationAddress||{};
+  return {
+    _id:       o.orderId, source:'ebay', channel:'eBay',
+    orderId:   o.orderId,
+    customer:  ship.fullName||buyer.fullName||'—',
+    email:     ship.email||buyer.email||'',
+    date:      fmtISO(o.creationDate), dateRaw:o.creationDate,
+    lineItems: (o.lineItems||[]).map(li=>({
+      sku:   li.sku||'?', title:li.title||'Unknown',
+      qty:   li.quantity||1,
+      price: parseFloat(li.lineItemCost?.value||li.discountedLineItemCost?.value||0)
+    })),
+    total:     parseFloat(o.pricingSummary?.total?.value||0),
+    rawData:o, qbStatus:null, qbRecordId:null, greenTag:false
+  };
 }
 
-function fmtISO(s) {
-  if (!s) return '';
-  const d = new Date(s);
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
+// ═══ EBAY FEE ADAPTER (from Finances API) ════════════════════════════════════
+function adaptEbayTransaction(tx) {
+  // tx is one transaction from /sell/finances/v1/transaction
+  const orderId = tx.orderId;
+  if (!orderId) return null;
 
-function buildNotes(o) {
-  const addr = o.deliver_to || {};
-  const ch = channelInfo(o).label;
-  const lines = [
-    `Order ID: ${o.channel_order_id || o.number || o.id}`,
-    `Channel: ${ch}`,
-    `Order date: ${fmtDate(o.created_at)}`,
-    `Ship by: ${fmtDate(o.required_ship_date || o.created_at)}`,
-    `Shipping: ${o.requested_shipping || 'Standard'}`,
-    '',
-    '--- Customer ---',
-    `Name: ${[addr.first_name, addr.last_name].filter(Boolean).join(' ')}`,
-    addr.company ? `Company: ${addr.company}` : null,
-    `Address: ${addr.address1 || ''}`,
-    addr.address2 ? `         ${addr.address2}` : null,
-    `${addr.city || ''}, ${addr.state || ''} ${addr.zip || ''}`,
-    addr.country || '',
-    addr.phone ? `Phone: ${addr.phone}` : null,
-    o.customer?.email ? `Email: ${o.customer.email}` : null,
-    '',
-    '--- Items ---',
-    ...(o.line_items || []).flatMap(li => [
-      `Item: ${li.sellable?.title || li.product_title || 'Unknown'}`,
-      `SKU: ${li.sellable?.sku_code || li.sku || '—'}`,
-      `Qty: ${li.quantity || 1}   Price: $${parseFloat(li.price||0).toFixed(2)}`
-    ]),
-    '',
-    `Order Total: $${parseFloat(o.total_price||0).toFixed(2)}`
-  ].filter(l => l !== null).join('\n');
-  return lines;
-}
+  const subtotal  = parseFloat(tx.amount?.value || 0);
+  const salesTax  = parseFloat(tx.salesTax?.amount?.value || 0);
+  const shipping  = 0; // not directly in transaction; comes from order
+  const orderTotal = subtotal + salesTax;
 
-function renderTable() {
-  const tbody = document.getElementById('tbody');
-  document.getElementById('orderCount').textContent = orders.length + ' orders';
-  document.getElementById('sTotal').textContent = orders.length;
-  document.getElementById('sSynced').textContent = synced;
-  document.getElementById('sFailed').textContent = failed;
-  document.getElementById('sSkipped').textContent = skipped;
+  // Aggregate fees from all line items
+  const feeBreakdown = {};
+  let totalFees = 0;
 
-  if (!orders.length) {
-    tbody.innerHTML = '<tr><td colspan="8"><div class="empty">// No orders loaded yet</div></td></tr>';
-    return;
+  for (const li of (tx.orderLineItems || [])) {
+    for (const fee of (li.marketplaceFees || [])) {
+      const type  = fee.feeType || 'OTHER';
+      const label = EBAY_FEE_LABELS[type] || type.replace(/_/g,' ').toLowerCase();
+      const amt   = parseFloat(fee.amount?.value || 0);
+      feeBreakdown[label] = (feeBreakdown[label] || 0) + amt;
+      totalFees += amt;
+    }
   }
 
-  const channels = [...new Set(orders.map(o => channelInfo(o).label))];
-  document.getElementById('sChannels').textContent = channels.join(', ');
+  const ebayCollectedTax = salesTax > 0 ? -salesTax : null;
+  const orderEarnings    = subtotal + totalFees; // totalFees is already negative
 
-  tbody.innerHTML = orders.map((o,i) => {
-    const ch = channelInfo(o);
-    const s = qbStatus[o.id];
-    const pill = s==='ok'  ? '<span class="pill p-ok">✓ Synced</span>'
-               : s==='skip'? '<span class="pill p-wn">~ Exists</span>'
-               : s         ? `<span class="pill p-er" title="${s}">✕ Failed</span>`
-                           : '<span class="pill p-q">Queued</span>';
-    const addr = o.deliver_to || {};
-    const customer = [addr.first_name, addr.last_name].filter(Boolean).join(' ') || '—';
-    const skus = (o.line_items||[]).map(li => li.sellable?.sku_code || li.sku || '?').join(', ');
-    return `<tr>
-      <td style="color:var(--m)">${i+1}</td>
-      <td style="color:var(--a);font-size:10px;font-family:'IBM Plex Mono',monospace">${o.channel_order_id||o.number||o.id}</td>
-      <td><span class="${ch.cls}">${ch.label}</span></td>
-      <td>${customer}</td>
-      <td style="font-family:'IBM Plex Mono',monospace">${fmtDate(o.created_at)}</td>
-      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'IBM Plex Mono',monospace;font-size:10px" title="${skus}">${skus}</td>
-      <td style="color:var(--ok);font-family:'IBM Plex Mono',monospace">$${parseFloat(o.total_price||0).toFixed(2)}</td>
+  return {
+    orderId,
+    source:           'ebay',
+    subtotal:         fmtMoney(subtotal),
+    shipping:         null,
+    salesTax:         salesTax > 0 ? fmtMoney(salesTax) : null,
+    orderTotal:       fmtMoney(orderTotal),
+    ebayCollectedTax: ebayCollectedTax !== null ? `-${fmtMoney(Math.abs(ebayCollectedTax))}` : null,
+    feeBreakdown,     // { 'Transaction fees': -3.01, 'Ad Fee': -2.49, ... }
+    totalFees:        fmtMoney(totalFees),
+    orderEarnings:    fmtMoney(orderEarnings),
+  };
+}
+
+// ═══ NOTES BUILDER ════════════════════════════════════════════════════════════
+function buildNotes(order) {
+  const fees = feeMap[order.orderId];
+  const parts = [
+    `Order ID: ${order.orderId}`,
+    `Channel: ${order.channel}`,
+    `Order Date: ${fmtDate(order.dateRaw||order.date)}`,
+    `Customer: ${order.customer}`,
+    order.email ? `Email: ${order.email}` : null,
+    '',
+    '--- Line Items ---',
+    ...order.lineItems.flatMap(li=>[
+      `Item: ${li.title}`,
+      `SKU: ${li.sku}   Qty: ${li.qty}   Price: $${li.price.toFixed(2)}`
+    ]),
+    '',
+    `Order Total: $${order.total.toFixed(2)}`,
+  ];
+
+  if (fees) {
+    parts.push('', '--- Fee Breakdown ---');
+
+    if (fees.source === 'ebay' || order.channel === 'eBay') {
+      // eBay fee format (matches the screenshot)
+      if (fees.subtotal)         parts.push(`Subtotal: ${fees.subtotal}`);
+      if (fees.shipping)         parts.push(`Shipping: ${fees.shipping}`);
+      if (fees.salesTax)         parts.push(`Sales tax: ${fees.salesTax}`);
+      if (fees.orderTotal)       parts.push(`Order total: ${fees.orderTotal}`);
+      if (fees.ebayCollectedTax) parts.push(`eBay collected - Sales tax: ${fees.ebayCollectedTax}`);
+      // Individual fee line items
+      if (fees.feeBreakdown) {
+        for (const [label, amt] of Object.entries(fees.feeBreakdown)) {
+          parts.push(`${label}: ${fmtMoney(amt)}`);
+        }
+      } else {
+        if (fees.transactionFees) parts.push(`Transaction fees: ${fees.transactionFees}`);
+        if (fees.adFees)          parts.push(`Ad Fee General: ${fees.adFees}`);
+      }
+      if (fees.orderEarnings)    parts.push(`Order earnings: ${fees.orderEarnings}`);
+
+    } else {
+      // Amazon fee format
+      if (fees.price)      parts.push(`Price: ${fees.price}`);
+      if (fees.tax)        parts.push(`Tax: ${fees.tax}`);
+      if (fees.shipping)   parts.push(`Shipping: ${fees.shipping}`);
+      if (fees.amazonFees) parts.push(`Amazon fees: ${fees.amazonFees}`);
+      if (fees.mfTax)      parts.push(`Marketplace Facilitator Tax: ${fees.mfTax}`);
+      if (fees.earnings)   parts.push(`Your earnings: ${fees.earnings}`);
+    }
+  }
+
+  return parts.filter(l=>l!==null).join('\n');
+}
+
+// ═══ RENDER ═══════════════════════════════════════════════════════════════════
+function renderOrders() {
+  const tbody=document.getElementById('tbody');
+  document.getElementById('orderCount').textContent=`${orders.length} order${orders.length!==1?'s':''}`;
+  document.getElementById('sTotal').textContent=orders.length;
+  document.getElementById('sSelected').textContent=selectedIds.size;
+  document.getElementById('sSynced').textContent=synced;
+  document.getElementById('sFailed').textContent=failed;
+
+  if(!orders.length){
+    tbody.innerHTML='<tr><td colspan="9"><div class="empty-msg">// No orders loaded</div></td></tr>';
+    return;
+  }
+  tbody.innerHTML=orders.map((o,i)=>{
+    const sel=selectedIds.has(o._id);
+    const skus=o.lineItems.map(li=>li.sku).join(', ')||'—';
+    const hasFees=!!feeMap[o.orderId];
+    let pill;
+    if(o.qbStatus==='ok')   pill='<span class="pill p-ok">✓ Synced</span>';
+    else if(o.qbStatus==='skip') pill='<span class="pill p-skip">⊘ Skipped</span>'��[;
+    else if(o.qbStatus)     pill=`<span class="pill p-er" title="${o.qbStatus}">✕ Failed</span>`;
+    else if(o.greenTag)     pill='<span class="pill p-wn">↩ Tagged</span>';
+    else                    pill='<span class="pill p-q">Queued</span>';
+    return `<tr style="${sel?'background:rgba(0,194,168,.04)':''}">
+      <td><input type="checkbox" ${sel?'checked':''} onchange="toggleSelect('${o._id}',this.checked)"></td>
+      <td style="color:var(--m);font-family:'IBM Plex Mono',monospace;font-size:10px">${i+1}</td>
+      <td><span class="${chCls(o.channel)}">${o.channel}</span></td>
+      <td style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--a)">
+        ${o.orderId}${hasFees?'<span class="fee-dot" title="Fee data attached"></span>':''}
+      </td>
+      <td>${o.customer}</td>
+      <td style="font-family:'IBM Plex Mono',monospace;font-size:10px">${fmtDate(o.dateRaw||o.date)}</td>
+      <td style="max-width:145px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'IBM Plex Mono',monospace;font-size:10px" title="${skus}">${skus}</td>
+      <td style="color:var(--ok);font-family:'IBM Plex Mono',monospace">$${o.total.toFixed(2)}</td>
       <td>${pill}</td>
     </tr>`;
   }).join('');
 }
 
-async function fetchOrders() {
-  const key = document.getElementById('veeqoKey').value.trim();
-  const status = document.getElementById('orderStatus').value;
-  const max = parseInt(document.getElementById('maxOrders').value) || 50;
-  if (!key) { log('ERROR: Enter Veeqo API key', 'er'); return; }
+function toggleSelect(id,checked){
+  if(checked)selectedIds.add(id);else selectedIds.delete(id);
+  document.getElementById('sSelected').textContent=selectedIds.size;
+  document.getElementById('btnSync').disabled=orders.length===0;
+  const sa=document.getElementById('selectAll');
+  sa.indeterminate=selectedIds.size>0&&selectedIds.size<orders.length;
+  sa.checked=orders.length>0&&selectedIds.size===orders.length;
+}
+function toggleSelectAll(checked){
+  orders.forEach(o=>checked?selectedIds.add(o._id):selectedIds.delete(o._id));
+  renderOrders(); document.getElementById('btnSync').disabled=orders.length===0;
+}
 
-  document.getElementById('btnFetch').disabled = true;
-  orders=[]; qbStatus={}; synced=0; failed=0; skipped=0;
-  document.getElementById('log').innerHTML='';
-  log('Connecting to Veeqo...', 'inf');
-  setProgress(5);
+// ═══ FETCH: VEEQO ════════════════════════════════════════════════════════════
+async function fetchVeeqo() {
+  const key=document.getElementById('veeqoKey').value.trim();
+  const status=document.getElementById('orderStatus').value;
+  const max=parseInt(document.getElementById('maxOrders').value)||50;
+  if(!key){log('ERROR: Veeqo API key required','er');return;}
+  document.getElementById('btnVeeqo').disabled=true;
+  log('Connecting to Veeqo...','inf'); setProgress(5);
+  try {
+    const pageSize=Math.min(max,50); let all=[],page=1;
+    while(all.length<max){
+      log(`  Fetching page ${page}...`,'dim');
+      const params=new URLSearchParams({page_size:pageSize,page,status});
+      const resp=await fetch(`${BASE}/api/veeqo/orders?${params}`,{headers:{'x-veeqo-key':key}});
+      if(!resp.ok){const e=await resp.json();throw new Error(e.error||`HTTP ${resp.status}`);}
+      const data=await resp.json();
+      if(!Array.isArray(data)||!data.length)break;
+      all=all.concat(data); setProgress(5+Math.min((all.length/max)*40,40));
+      if(data.length<pageSize)break; page++;
+    }
+    const adapted=all.slice(0,max).map(adaptVeeqo);
+    orders=[...orders.filter(o=>o.source!=='veeqo'),...adapted];
+    adapted.forEach(o=>{if(!o.greenTag)selectedIds.add(o._id);});
+    const tagged=adapted.filter(o=>o.greenTag).length;
+    const counts={};
+    adapted.forEach(o=>{counts[o.channel]=(counts[o.channel]||0)+1;});
+    log(`✓ ${adapted.length} orders from Veeqo`,'ok');
+    Object.entries(counts).forEach(([c,n])=>log(`  ${c}: ${n}`,'dim'));
+    if(tagged) log(`  ${tagged} already green-tagged (auto-deselected)`,'wn');
+    renderOrders(); setProgress(50);
+    document.getElementById('btnSync').disabled=false;
+    document.getElementById('btnCSV').style.display='inline-flex';
+    document.getElementById('selectAll').checked=selectedIds.size===orders.length;
+    saveConfig();
+  } catch(e){log('Veeqo ERROR: '+e.message,'er');}
+  document.getElementById('btnVeeqo').disabled=false;
+}
+
+// ═══ FETCH: EBAY ORDERS ═════════════════════════════════════════════════════
+async function fetchEbay() {
+  const token=document.getElementById('ebayToken').value.trim();
+  const from=document.getElementById('ebayFrom').value;
+  const to=document.getElementById('ebayTo').value;
+  if(!token){log('ERROR: eBay OAuth token required','er');return;}
+  document.getElementById('btnEbay').disabled=true;
+  document.getElementById('btnEbayFees').disabled=true;
+  log('Connecting to eBay Fulfillment API...','inf'); setProgress(5);
+  try {
+    const fromISO=from?new Date(from+'T00:00:00Z').toISOString():'';
+    const toISO=to?new Date(to+'T23:59:59Z').toISOString():'';
+    const filter=(fromISO&&toISO)?`creationdate:[${fromISO}..${toISO}]`:'';
+    let all=[],offset=0,total=null;
+    while(true){
+      const params=new URLSearchParams({limit:50,offset});
+      if(filter) params.set('filter',filter);
+      const resp=await fetch(`${BASE}/api/ebay/orders?${params}`,{headers:{'x-ebay-token':token}});
+      if(!resp.ok){const e=await resp.json();throw new Error(e.errors?.[0]?.message||e.message||`HTTP ${resp.status}`);}
+      const data=await resp.json();
+      const batch=data.orders||[];
+      if(total===null)total=data.total||batch.length;
+      all=all.concat(batch);
+      log(`  ${all.length} / ${total} orders`,'dim');
+      setProgress(5+Math.min((all.length/Math.max(total,1))*40,40));
+      if(batch.length<50||all.length>=total)break; offset+=50;
+    }
+    const adapted=all.map(adaptEbay);
+    orders=[...orders.filter(o=>o.source!=='ebay'),...adapted];
+    adapted.forEach(o=>selectedIds.add(o._id));
+    log(`✓ ${adapted.length} eBay orders fetched`,'ok');
+    renderOrders(); setProgress(50);
+    document.getElementById('btnSync').disabled=false;
+    document.getElementById('btnCSV').style.display='inline-flex';
+    document.getElementById('btnEbayFees').disabled=false;
+    document.getElementById('ebayFeeStatus').textContent='← Click to fetch fee details';
+    saveConfig();
+  } catch(e){log('eBay ERROR: '+e.message,'er');}
+  document.getElementById('btnEbay').disabled=false;
+}
+
+// ═══ FETCH: EBAY FEES (Finances API) ════════════════════════════════════════
+async function fetchEbayFees() {
+  const token=document.getElementById('ebayToken').value.trim();
+  const from=document.getElementById('ebayFrom').value;
+  const to=document.getElementById('ebayTo').value;
+  if(!token){log('ERROR: eBay OAuth token required','er');return;}
+
+  const ebayOrders=orders.filter(o=>o.source==='ebay'||o.channel==='eBay');
+  if(!ebayOrders.length){log('No eBay orders loaded — fetch orders first','wn');return;}
+
+  document.getElementById('btnEbayFees').disabled=true;
+  document.getElementById('ebayFeeStatus').textContent='Fetching fees...';
+  log(`Fetching fee breakdown for ${ebayOrders.length} eBay orders...`,'inf');
+  setProgress(50);
 
   try {
-    const pageSize = Math.min(max, 50);
-    const totalPages = Math.ceil(max / pageSize);
-    let all = [];
+    // Build date filter for the transactions API
+    const fromISO=from?new Date(from+'T00:00:00Z').toISOString():'';
+    const toISO=to?new Date(to+'T23:59:59Z').toISOString():'';
+    const filterDate=(fromISO&&toISO)?`transactionDate:[${fromISO}..${toISO}]`:'';
 
-    for (let page = 1; page <= totalPages; page++) {
-      log(`Fetching page ${page} of ${totalPages}...`, 'dim');
-      const params = new URLSearchParams({ page_size: pageSize, page, status });
-      const resp = await fetch(`${BASE}/api/veeqo/orders?${params}`, {
-        headers: { 'x-veeqo-key': key }
-      });
-      if (!resp.ok) {
-        const err = await resp.json();
-        throw new Error(err.error || `HTTP ${resp.status}`);
+    // Fetch all transactions in the date range
+    let allTx=[],offset=0,total=null;
+    while(true){
+      const params=new URLSearchParams({limit:200,offset});
+      if(filterDate) params.set('filterDate',filterDate);
+      const resp=await fetch(`${BASE}/api/ebay/transactions?${params}`,{headers:{'x-ebay-token':token}});
+      if(!resp.ok){const e=await resp.json();throw new Error(e.errors?.[0]?.message||e.message||`HTTP ${resp.status}`);}
+      const data=await resp.json();
+      const batch=data.transactions||[];
+      if(total===null)total=data.total||batch.length;
+      allTx=allTx.concat(batch);
+      if(batch.length<200||allTx.length>=total)break; offset+=200;
+    }
+
+    // Map transactions to orders
+    let matched=0;
+    for(const tx of allTx){
+      const fee=adaptEbayTransaction(tx);
+      if(!fee)continue;
+      // Try to match by orderId
+      const order=orders.find(o=>o.orderId===fee.orderId||o.orderId===tx.orderId);
+      if(order){
+        feeMap[fee.orderId]=fee; matched++;
       }
-      const data = await resp.json();
-      if (!Array.isArray(data) || !data.length) break;
-      all = all.concat(data);
-      log(`  Page ${page}: ${data.length} orders received`, 'ok');
-      setProgress(5 + (page/totalPages)*45);
-      if (data.length < pageSize) break;
     }
 
-    orders = all.slice(0, max);
-    log(`✓ Fetched ${orders.length} total orders from Veeqo`, 'ok');
+    log(`✓ ${allTx.length} transactions fetched — ${matched} matched to orders`,'ok');
+    document.getElementById('ebayFeeStatus').textContent=`✓ ${matched}/${ebayOrders.length} fees matched`;
+    renderOrders(); setProgress(100);
 
-    // Channel breakdown
-    const counts = {};
-    orders.forEach(o => { const c = channelInfo(o).label; counts[c]=(counts[c]||0)+1; });
-    Object.entries(counts).forEach(([c,n]) => log(`  ${c}: ${n} orders`, 'dim'));
+    // Show summary in fee panel
+    const feeList=document.getElementById('feeList');
+    const items=Object.values(feeMap).filter(f=>f.source==='ebay');
+    if(items.length){
+      feeList.innerHTML=items.map(f=>`
+        <div class="fee-item" style="border-left:2px solid var(--ebay)">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ebay);margin-bottom:5px">${f.orderId}</div>
+          ${f.subtotal?`<div class="fee-row"><span style="color:var(--�\�m)">Subtotal</span><span>${f.subtotal}</span></div>`:''}
+          ${f.salesTax?`<div class="fee-row"><span style="color:var(--m)">Sales tax</span><span>${f.salesTax}</span></div>`:''}
+          ${f.orderTotal?`<div class="fee-row"><span style="color:var(--m)">Order total</span><span>${f.orderTotal}</span></div>`:''}
+          ${f.ebayCollectedTax?`<div class="fee-row"><span style="color:var(--m)">eBay collected tax</span><span style="color:var(--er)">${f.ebayCollectedTax}</span></div>`:''}
+          ${Object.entries(f.feeBreakdown||{}).map(([l,a])=>`<div class="fee-row"><span style="color:var(--m)">${l}</span><span style="color:var(--er)">${fmtMoney(a)}</span></div>`).join('')}
+          ${f.orderEarnings?`<div class="fee-row total"><span>Order earnings</span><span style="color:var(--ok)">${f.orderEarnings}</span></div>`:''}
+        </div>`).join('');
+    }
 
-    renderTable();
-    setProgress(50);
-    document.getElementById('btnSync').disabled = false;
-    document.getElementById('btnCSV').style.display = 'inline-flex';
-
-  } catch(e) {
-    log('ERROR: ' + e.message, 'er');
+  } catch(e){
+    log('eBay Fees ERROR: '+e.message,'er');
+    document.getElementById('ebayFeeStatus').textContent='Error — see log';
   }
-  document.getElementById('btnFetch').disabled = false;
+  document.getElementById('btnEbayFees').disabled=false;
 }
 
-async function syncAll() {
-  const qbToken = document.getElementById('qbToken').value.trim();
-  if (!qbToken) { log('ERROR: Enter QuickBase token', 'er'); return; }
-  if (!orders.length) { log('No orders to sync', 'wn'); return; }
+// ═══ PASTE FEE PARSER ═══════════════════════════════════════════════════════
+function parseEmails() {
+  const raw=document.getElementById('emailPaste').value.trim();
+  if(!raw){log('ERROR: Paste email content first','er');return;}
 
-  document.getElementById('btnSync').disabled = true;
-  synced=0; failed=0; skipped=0;
-  log('', 'dim');
-  log(`Pushing ${orders.length} orders to QuickBase...`, 'inf');
+  const parsed=[];
 
-  for (let i = 0; i < orders.length; i++) {
-    const o = orders[i];
-    const orderId = o.channel_order_id || o.number || String(o.id);
-    log(`[${i+1}/${orders.length}] ${orderId} (${channelInfo(o).label})...`, 'dim');
+  // ── Amazon: order IDs are 111-1234567-8901234
+  const amazonChunks=raw.split(/(?=\b\d{3}-\d{7}-\d{7}\b)/);
+  for(const chunk of amazonChunks){
+    const m=chunk.match(/\b(\d{3}-\d{7}-\d{7})\b/);
+    if(!m)continue;
+    const orderId=m[1];
+    const fee={
+      orderId, source:'amazon',
+      price:      grab(chunk,/(?:Item price|Price)[:\s]+(\$[\d,.]+)/i),
+      tax:        grab(chunk,/\bTax[:\s]+(\$[\d,.]+)/i),
+      shipping:   grab(chunk,/Shipping[:\s]+(\$[\d,.]+)/i),
+      amazonFees: grab(chunk,/Amazon\s*fees?[:\s]+([-]?\$[\d,.]+)/i),
+      mfTax:      grab(chunk,/Marketplace Facilitator Tax[:\s]+([-]?\$[\d,.]+)/i),
+      earnings:   grab(chunk,/Your earnings[:\s]+(\$[\d,.]+)/i),
+    };
+    if(fee.price||fee.earnings||fee.amazonFees){feeMap[orderId]=fee;parsed.push(orderId);}
+  }
 
+  // ── eBay: order IDs are XX-XXXXX-XXXXX (e.g. 12-03456-78901)
+  const ebayChunks=raw.split(/(?=\b\d{2}-\d{5}-\d{5}\b)/);
+  for(const chunk of ebayChunks){
+    const m=chunk.match(/\b(\d{2}-\d{5}-\d{5})\b/);
+    if(!m)continue;
+    const orderId=m[1];
+    if(feeMap[orderId])continue; // already parsed as Amazon
+    const fee={
+      orderId, source:'ebay',
+      subtotal:        grab(chunk,/Subtotal[:\s]+\$?([\d,.]+)/i),
+      shipping:        grab(chunk,/Shipping[:\s]+\$?([\d,.]+)/i),
+      salesTax:        grab(chunk,/Sales tax[:\s]+\$?([\d,.]+)/i),
+      orderTotal:      grab(chunk,/Order total[:\s]+\$?([\d,.]+)/i),
+      ebayCollectedTax:grab(chunk,/eBay collected[^:\n]*[:\s]+([-]?\$?[\d,.]+)/i),
+      transactionFees: grab(chunk,/Transaction fees?[:\s]+([-]?\$?[\d,.]+)/i),
+      adFees:          grab(chunk,/Ad Fee[^:\n]*[:\s]+([-]?\$?[\d,.]+)/i),
+      orderEarnings:   grab(chunk,/Order earnings[:\s]+\$?([\d,.]+)/i),
+      feeBreakdown:    null,
+    };
+    if(fee.subtotal||fee.orderEarnings||fee.transactionFees){feeMap[orderId]=fee;parsed.push(orderId);}
+  }
+
+  const feeList=document.getElementById('feeList');
+  const feeStats=document.getElementById('feeStats');
+  if(!parsed.length){
+    feeList.innerHTML='<span style="color:var(--er);font-family:\'IBM Plex Mono\',monospace;font-size:11px">No fee data found.</span>';
+    log('No fees parsed — check you pasted the full email text','wn'); return;
+  }
+  const matched=parsed.filter(id=>orders.some(o=>o.orderId===id)).length;
+  feeList.innerHTML=parsed.map(id=>{
+    const f=feeMap[id], ok=orders.some(o=>o.orderId===id);
+    const isEbay=f.source==='ebay';
+    return `<div class="fee-item" style="border-left:2px solid ${ok?'var(--ok)':'var(--w)'}">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:${isEbay?'var(--ebay)':'var(--amz)'};margin-bottom:3px">
+        ${id} <span style="color:${ok?'var(--ok)':'var(--w)'}">${ok?'✓ matched':'⚠ no order'}</span>
+      </div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--m)">
+        ${isEbay
+          ? `Subtotal: ${f.subtotal||'—'} &nbsp; Fees: ${f.transactionFees||'—'} &nbsp; Earnings: ${f.orderEarnings||'—'}`
+          : `Price: ${f.price||'—'} &nbsp; Fees: ${f.amazonFees||'—'} &nbsp; Earnings: ${f.earnings||'—'}`}
+      </div>
+    </div>`;
+  }).join('');
+  feeStats.innerHTML=`<span style="color:var(--ok)">${parsed.length} fees parsed</span>&nbsp;&nbsp;<span style="color:var(--m)">${matched} matched to orders</span>`;
+  log(`✓ ${parsed.length} fee records parsed — ${matched} matched`,'ok');
+  renderOrders();
+}
+function grab(text,re){const m=text.match(re);return m?m[1].trim():null;}
+
+// ═══ PUSH TO QUICKBASE ════════════════════════════════════════════════════════
+async function pushToQB() {
+  const token=document.getElementById('qbToken').value.trim();
+  if(!token){log('ERROR: QuickBase token required','er');return;}
+
+  const toPush=(selectedIds.size>0?orders.filter(o=>selectedIds.has(o._id)):orders)
+    .filter(o=>o.qbStatus!=='ok');
+  if(!toPush.length){log('No orders to push','wn');return;}
+
+  document.getElementById('btnSync').disabled=true;
+  log(`Pushing ${toPush.length} order${toPush.length>1?'s':''} to QuickBase...`,'inf');
+  setProgress(50);
+
+  for(let i=0;i<toPush.length;i++){
+    const o=toPush[i];
+    const companyId=COMPANY_IDS[o.channel]||null;
+    const record={
+      6:  {value: o.date||fmtISO(o.dateRaw)},
+      35: {value: o.orderId},
+      50: {value: buildNotes(o)},
+      52: {value: 'Open'},
+    };
+    if(companyId) record[74]={value:companyId};
+
+    log(`[${i+1}/${toPush.length}] ${o.orderId}  (${o.channel})...`,'dim');
     try {
-      const payload = {
-        to: QB_TABLE,
-        data: [{
-          "6":  { value: fmtISO(o.created_at) },
-          "35": { value: orderId },
-          "50": { value: buildNotes(o) }
-        }]
-      };
-
-      const resp = await fetch(`${BASE}/api/quickbase/records`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-qb-token': qbToken,
-          'x-qb-realm': QB_REALM
+      const resp=await fetch(QB_API,{
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'Authorization':`QB-USER-TOKEN ${token}`,
+          'QB-Realm-Hostname':QB_REALM
         },
-        body: JSON.stringify(payload)
+        body:JSON.stringify({to:QB_TABLE,data:[record]})
       });
-
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.message || data.description || JSON.stringify(data).slice(0,150) || `HTTP ${resp.status}`);
-      const recId = data?.metadata?.createdRecordIds?.[0] ?? '?';
-      qbStatus[o.id] = 'ok'; synced++;
-      log(`  ✓ QB record #${recId} created`, 'ok');
-
-    } catch(e) {
-      qbStatus[o.id] = e.message; failed++;
-      log(`  ✕ ${e.message}`, 'er');
+      const data=await resp.json();
+      if(!resp.ok)throw new Error(data.message||data.description||`HTTP ${resp.status}`);
+      const created=data?.metadata?.createdRecordIds?.[0];
+      const updated=data?.metadata?.updatedRecordIds?.[0];
+      const recId=created??updated??'?';
+      o.qbStatus='ok'; o.qbRecordId=recId; synced++;
+      log(`  ✓ QB record #${recId} ${created?'created':'updated'}`,'ok');
+    } catch(e){
+      o.qbStatus=e.message; failed++;
+      log(`  ✕ ${e.message}`,'er');
     }
-
-    renderTable();
-    setProgress(50 + ((i+1)/orders.length)*50);
-    await new Promise(r => setTimeout(r, 120));
+    renderOrders();
+    setProgress(50+((i+1)/toPush.length)*50);
+    await new Promise(r=>setTimeout(r,90));
   }
-
   setProgress(100);
-  log('', 'dim');
-  log(`COMPLETE: ${synced} synced · ${failed} failed · ${skipped} skipped`, synced>0?'ok':'er');
-  document.getElementById('btnSync').disabled = false;
+  log('','dim');
+  log(`Done — ${synced} synced · ${failed} failed`,synced>0?'ok':'er');
+  document.getElementById('btnSync').disabled=false;
 }
 
+// ═══ CSV / CLEAR ═════════════════════════════════════════════════════════════
 function exportCSV() {
-  const rows = [['Order ID','Channel','Customer','Date','SKUs','Total','QB Status']];
-  orders.forEach(o => {
-    const addr = o.deliver_to||{};
-    const s = qbStatus[o.id];
-    rows.push([
-      o.channel_order_id||o.number||o.id,
-      channelInfo(o).label,
-      [addr.first_name,addr.last_name].filter(Boolean).join(' '),
-      fmtDate(o.created_at),
-      (o.line_items||[]).map(li=>li.sellable?.sku_code||li.sku||'?').join('; '),
-      `$${parseFloat(o.total_price||0).toFixed(2)}`,
-      s==='ok'?'Synced':s==='skip'?'Already Exists':s?'Failed: '+s:'Pending'
-    ]);
-  });
-  const csv = rows.map(r=>r.map(v=>'"'+(v||'').toString().replace(/"/g,'""')+'"').join(',')).join('\n');
-  const a = document.createElement('a');
+  const rows=[['Order ID','Source','Channel','Customer','Date','SKUs','Total','QB Status','QB Record']];
+  orders.forEach(o=>rows.push([o.orderId,o.source,o.channel,o.customer,
+    fmtDate(o.dateRaw||o.date),o.lineItems.map(li=>li.sku).join('; '),
+    `$${o.total.toFixed(2)}`,o.qbStatus==='ok'?'Synced':o.qbStatus||'Pending',o.qbRecordId||'']));
+  const csv=rows.map(r=>r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');
   a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
-  a.download='veeqo_orders_'+new Date().toISOString().slice(0,10)+'.csv';
-  a.click();
+  a.download=`orders_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+}
+
+function clearAll() {
+  orders=[];selectedIds.clear();feeMap={};synced=0;failed=0;
+  document.getElementById('log').innerHTML='<span class="dim">// Cleared.</span>';
+  document.getElementById('tbody').innerHTML='<tr><td colspan="9"><div class="empty-msg">// No orders loaded</div></td></tr>';
+  ['sTotal','sSelected','sSynced','sFailed'].forEach(id=>document.getElementById(id).textContent='0');
+  document.getElementById('orderCount').textContent='0 orders';
+  document.getElementById('btnSync').disabled=true;
+  document.getElementById('btnCSV').style.display='none';
+  document.getElementById('btnEbayFees').disabled=true;
+  document.getElementById('ebayFeeStatus').textContent='';
+  document.getElementById('selectAll').checked=false;
+  document.getElementById('feeList').innerHTML='<span style="color:var(--m);font-family:\'IBM Plex Mono\',monospace;font-size:11px">// Paste emails and click Parse</span>';
+  document.getElementById('emailPaste').value='';
+  document.getElementById('feeStats').innerHTML='';
+  setProgress(0);
 }
 </script>
 </body>
 </html>
+l>
