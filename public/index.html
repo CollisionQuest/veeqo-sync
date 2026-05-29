@@ -114,6 +114,8 @@ input[type=checkbox]{width:13px;height:13px;margin:0;padding:0;accent-color:var(
     <input value="carlgarcia.quickbase.com" readonly>
     <label>Table</label>
     <input value="bvgseawft" readonly>
+    <label>eBay Attachment Field ID <span style="color:var(--m);font-style:normal">(optional)</span></label>
+    <input type="text" id="qbAttachField" placeholder="e.g. 55">
     <div class="save-row">
       <button class="btn btn-teal btn-sm" onclick="saveConfig()">Save Credentials</button>
       <span class="saved-tag" id="savedTag">✓ saved</span>
@@ -132,7 +134,10 @@ input[type=checkbox]{width:13px;height:13px;margin:0;padding:0;accent-color:var(
 <!-- MAIN -->
 <div class="main">
   <div class="tabs">
-    <button class="tab active" onclick="switchTab('veeqo',this)">
+    <button class="tab active" id="tab-sync" onclick="switchTab('sync',this)">
+      <span class="tdot" style="background:#f59e0b"></span>☀ Morning Sync
+    </button>
+    <button class="tab" onclick="switchTab('veeqo',this)">
       <span class="tdot" style="background:var(--a)"></span>Veeqo
     </button>
     <button class="tab" onclick="switchTab('ebay',this)">
@@ -148,8 +153,40 @@ input[type=checkbox]{width:13px;height:13px;margin:0;padding:0;accent-color:var(
 
   <div class="panels">
 
+    <!-- MORNING SYNC -->
+    <div class="panel active" id="panel-sync">
+      <div style="text-align:center;padding:22px 20px 10px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--m);margin-bottom:18px;text-transform:uppercase;letter-spacing:.09em">
+          One click to sync all new Veeqo orders into QuickBase
+        </div>
+        <button class="btn btn-teal" id="btnSyncAll" onclick="runFullSync()"
+          style="font-size:13px;padding:13px 38px;letter-spacing:.08em;border-radius:8px">
+          ☀&nbsp; Sync All Orders to QuickBase
+        </button>
+        <div style="margin-top:10px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--m)" id="syncSubtitle">
+          Fetches from Veeqo · Skips green-tagged · Pushes to QB · Tags complete
+        </div>
+      </div>
+      <div class="prog" id="syncProgBar" style="margin:6px 20px;border-radius:4px;display:none;height:3px">
+        <div class="prog-fill" id="syncProgFill"></div>
+      </div>
+      <div id="syncLogWrap" style="margin:10px 20px 0;display:none">
+        <div style="background:#0a0c12;border:1px solid var(--b);border-radius:7px">
+          <div style="padding:6px 12px;font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--m);border-bottom:1px solid var(--b);display:flex;align-items:center;justify-content:space-between">
+            <span>Sync Log</span>
+            <span id="syncClock" style="color:var(--a)"></span>
+          </div>
+          <div id="syncLog" style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;line-height:1.9;padding:10px 14px;max-height:250px;overflow-y:auto"></div>
+        </div>
+      </div>
+      <div id="syncSummary" style="display:none;margin:10px 20px 0;background:var(--s);border:1px solid var(--b);border-radius:7px;padding:14px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:var(--ok);margin-bottom:12px">✅ Sync Complete</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:9px" id="summaryGrid"></div>
+      </div>
+    </div>
+
     <!-- VEEQO -->
-    <div class="panel active" id="panel-veeqo">
+    <div class="panel" id="panel-veeqo">
       <div class="pg3" style="margin-bottom:12px">
         <div>
           <label>Veeqo API Key</label>
@@ -261,7 +298,7 @@ input[type=checkbox]{width:13px;height:13px;margin:0;padding:0;accent-color:var(
 </div>
 
 <script>
-// ═══ CONSTANTS ══════════════════════════════════════════════════════════════
+// ═══ CONSTANTS ═══════════════════════════════════════════════════════════════
 const QB_REALM = "carlgarcia.quickbase.com";
 const QB_TABLE = "bvgseawft";
 const QB_API   = "https://api.quickbase.com/v1/records";
@@ -294,9 +331,10 @@ let synced = 0, failed = 0;
 (function init() {
   try {
     const s = JSON.parse(localStorage.getItem('ecom_sync') || '{}');
-    if (s.qbToken)   document.getElementById('qbToken').value   = s.qbToken;
-    if (s.veeqoKey)  document.getElementById('veeqoKey').value  = s.veeqoKey;
-    if (s.ebayToken) document.getElementById('ebayToken').value = s.ebayToken;
+    if (s.qbToken)       document.getElementById('qbToken').value       = s.qbToken;
+    if (s.veeqoKey)      document.getElementById('veeqoKey').value      = s.veeqoKey;
+    if (s.ebayToken)     document.getElementById('ebayToken').value     = s.ebayToken;
+    if (s.qbAttachField) document.getElementById('qbAttachField').value = s.qbAttachField;
   } catch(e) {}
   const now = new Date(), ago = new Date(now - 30*864e5);
   document.getElementById('ebayTo').value   = now.toISOString().slice(0,10);
@@ -305,15 +343,16 @@ let synced = 0, failed = 0;
 
 function saveConfig() {
   localStorage.setItem('ecom_sync', JSON.stringify({
-    qbToken:   document.getElementById('qbToken').value,
-    veeqoKey:  document.getElementById('veeqoKey').value,
-    ebayToken: document.getElementById('eb'ebayToken').value,
+    qbToken:       document.getElementById('qbToken').value,
+    veeqoKey:      document.getElementById('veeqoKey').value,
+    ebayToken:     document.getElementById('ebayToken').value,
+    qbAttachField: document.getElementById('qbAttachField').value,
   }));
   const t = document.getElementById('savedTag');
   t.style.opacity='1'; setTimeout(()=>t.style.opacity='0',2200);
 }
 
-// ═══ UI HELPERS ═════════════════════════════════════════════════════════════
+// ═══ UI HELPERS ══════════════════════════════════════════════════════════════
 function switchTab(name,btn) {
   document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
@@ -326,12 +365,12 @@ function log(msg,cls='inf') {
   el.className=cls; el.textContent=`[${ts}] ${msg}`; d.appendChild(el); d.scrollTop=d.scrollHeight;
 }
 function setProgress(p){document.getElementById('prog').style.width=p+'%'}
-function fmtDate(s){if(!s)return'';const d=new Date(s);if(isNaN(d))return s;return`${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}`}
+function fmtDate(s){if(!s)return'';const d=new Date(s);if(isNaN(d))return s{return`${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}`}
 function fmtISO(s){if(!s)return'';const d=new Date(s);if(isNaN(d))return s;return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 function fmtMoney(v){return v!==null&&v!==undefined?'$'+parseFloat(v).toFixed(2):'—'}
 function chCls(ch){return{Amazon:'ch-amazon',eBay:'ch-ebay',Walmart:'ch-walmart',Shopify:'ch-shopify',Etsy:'ch-etsy'}[ch]||'ch-other'}
 
-// ═══ CHANNEL DETECTION ══════════════════════════════════════════════════════
+// ═══ CHANNEL DETECTION ═══════════════════════════════════════════════════════
 function detectChannel(raw) {
   const ch=((raw.channel?.name||raw.channel_type||'')+'').toLowerCase();
   if(ch.includes('amazon')) return 'Amazon';
@@ -496,7 +535,7 @@ function renderOrders() {
     const hasFees=!!feeMap[o.orderId];
     let pill;
     if(o.qbStatus==='ok')   pill='<span class="pill p-ok">✓ Synced</span>';
-    else if(o.qbStatus==='skip') pill='<span class="pill p-skip">⊘ Skipped</span>'��[;
+    else if(o.qbStatus==='skip') pill='<span class="pill p-skip">⊘ Skipped</span>';
     else if(o.qbStatus)     pill=`<span class="pill p-er" title="${o.qbStatus}">✕ Failed</span>`;
     else if(o.greenTag)     pill='<span class="pill p-wn">↩ Tagged</span>';
     else                    pill='<span class="pill p-q">Queued</span>';
@@ -567,7 +606,7 @@ async function fetchVeeqo() {
   document.getElementById('btnVeeqo').disabled=false;
 }
 
-// ═══ FETCH: EBAY ORDERS ═════════════════════════════════════════════════════
+// ═══ FETCH: EBAY ORDERS ══════════════════════════════════════════════════════
 async function fetchEbay() {
   const token=document.getElementById('ebayToken').value.trim();
   const from=document.getElementById('ebayFrom').value;
@@ -666,7 +705,7 @@ async function fetchEbayFees() {
       feeList.innerHTML=items.map(f=>`
         <div class="fee-item" style="border-left:2px solid var(--ebay)">
           <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ebay);margin-bottom:5px">${f.orderId}</div>
-          ${f.subtotal?`<div class="fee-row"><span style="color:var(--�\�m)">Subtotal</span><span>${f.subtotal}</span></div>`:''}
+          ${f.subtotal?`<div class="fee-row"><span style="color:var(--m)">Subtotal</span><span>${f.subtotal}</span></div>`:''}
           ${f.salesTax?`<div class="fee-row"><span style="color:var(--m)">Sales tax</span><span>${f.salesTax}</span></div>`:''}
           ${f.orderTotal?`<div class="fee-row"><span style="color:var(--m)">Order total</span><span>${f.orderTotal}</span></div>`:''}
           ${f.ebayCollectedTax?`<div class="fee-row"><span style="color:var(--m)">eBay collected tax</span><span style="color:var(--er)">${f.ebayCollectedTax}</span></div>`:''}
@@ -682,7 +721,7 @@ async function fetchEbayFees() {
   document.getElementById('btnEbayFees').disabled=false;
 }
 
-// ═══ PASTE FEE PARSER ═══════════════════════════════════════════════════════
+// ═══ PASTE FEE PARSER ════════════════════════════════════════════════════════
 function parseEmails() {
   const raw=document.getElementById('emailPaste').value.trim();
   if(!raw){log('ERROR: Paste email content first','er');return;}
@@ -840,7 +879,115 @@ function clearAll() {
   document.getElementById('feeStats').innerHTML='';
   setProgress(0);
 }
+
+// ═══ MORNING SYNC ════════════════════════════════════════════════════════════
+
+function appendLog(cls, msg) {
+  // Alias so runFullSync can push to the sidebar log
+  log(msg, cls);
+}
+
+async function runFullSync() {
+  const btn       = document.getElementById('btnSyncAll');
+  const progBar   = document.getElementById('syncProgBar');  const progFill  = document.getElementById('syncProgFill');
+  const logWrap   = document.getElementById('syncLogWrap');
+  const logEl     = document.getElementById('syncLog');
+  const summary   = document.getElementById('syncSummary');
+  const subtitle  = document.getElementById('syncSubtitle');
+  const clockEl   = document.getElementById('syncClock');
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Syncing…';
+  progBar.style.display = 'block';
+  progFill.style.width  = '2%';
+  logWrap.style.display = 'block';
+  summary.style.display = 'none';
+  logEl.innerHTML = '';
+
+  const startMs = Date.now();
+  const ticker  = setInterval(() => {
+    const s = Math.floor((Date.now() - startMs) / 1000);
+    clockEl.textContent = s + 's';
+  }, 1000);
+
+  const cfg = JSON.parse(localStorage.getItem('ecom_sync') || '{}');
+  const attachField = cfg.qbAttachField || document.getElementById('qbAttachField').value || '';
+  const url = `/api/sync/run${attachField ? `?attachField=${encodeURIComponent(attachField)}` : ''}`;
+
+  function addLine(msg, color) {
+    const el = document.createElement('div');
+    if (color) el.style.color = color;
+    el.textContent = msg;
+    logEl.appendChild(el);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  const es = new EventSource(url);
+
+  es.onmessage = (e) => {
+    const d = JSON.parse(e.data);
+
+    if (d.type === 'log') {
+      const m = d.msg;
+      const color =
+        m.includes('✅') || m.includes('🟢') ? 'var(--ok)' :
+        m.includes('❌') ? 'var(--er)' :
+        m.includes('⚠️') ? 'var(--w' :
+        m.includes('📦') || m.includes('🚀') || m.includes('📋') || m.includes('⏭') ? 'var(--a)' : null;
+      addLine(m, color);
+      // Also push to sidebar log
+      log(m, m.includes('❌') ? 'er' : m.includes('⚠️') ? 'wn' : m.includes('✅') || m.includes('🟢') ? 'ok' : 'inf');
+    }
+
+    if (d.type === 'progress' && d.total > 0) {
+      progFill.style.width = Math.max(4, Math.round(d.done / d.total * 100)) + '%';
+    }
+
+    if (d.type === 'done') {
+      clearInterval(ticker);
+      es.close();
+      btn.disabled = false;
+      btn.textContent = '☀ Sync All Orders to QuickBase';
+      progFill.style.width = '100%';
+
+      // Show summary cards
+      summary.style.display = 'block';
+      document.getElementById('summaryGrid').innerHTML = `
+        <div class="stat"><div class="stat-n ok">${d.pushed}</div><div class="stat-l">Pushed</div></div>
+        <div class="stat"><div class="stat-n er">${d.failed}</div><div class="stat-l">Failed</div></div>
+        <div class="stat"><div class="stat-n">${d.skipped}</div><div class="stat-l">Already Synced</div></div>
+        <div class="stat"><div class="stat-n wn">${d.tagFailed}</div><div class="stat-l">Tag Errors</div></div>
+      `;
+
+      // Update sidebar stats
+      synced += d.pushed;
+      failed += d.failed;
+      document.getElementById('sSynced').textContent = synced;
+      document.getElementById('sFailed').textContent  = failed;
+      document.getElementById('sTotal').textContent  = (parseInt(document.getElementById('sTotal').textContent)||0) + d.pushed + d.failed + d.skipped;
+
+      const elapsed = ((Date.now() - startMs) / 1000).toFixed(1);
+      subtitle.textContent = `Last sync: ${new Date().toLocaleTimeString()} · ${d.pushed} pushed, ${d.skipped} already done · ${elapsed}s`;
+      clockEl.textContent = elapsed + 's';
+    }
+
+    if (d.type === 'error') {
+      clearInterval(ticker);
+      es.close();
+      btn.disabled = false;
+      btn.textContent = '☀ Sync All Orders to QuickBase';
+      addLine('❌ ' + d.msg, 'var(--er)');
+    }
+  };
+
+  es.onerror = () => {
+    clearInterval(ticker);
+    es.close();
+    btn.disabled = false;
+    btn.textContent = '☀ Sync All Orders to QuickBase';
+    addLine('⚠️ Connection dropped — please try again.', 'var(--w)');
+  };
+}
 </script>
 </body>
 </html>
-l>
