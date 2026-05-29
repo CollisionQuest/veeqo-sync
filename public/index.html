@@ -365,7 +365,7 @@ function log(msg,cls='inf') {
   el.className=cls; el.textContent=`[${ts}] ${msg}`; d.appendChild(el); d.scrollTop=d.scrollHeight;
 }
 function setProgress(p){document.getElementById('prog').style.width=p+'%'}
-function fmtDate(s){if(!s)return'';const d=new Date(s);if(isNaN(d))return s{return`${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}`}
+function fmtDate(s){if(!s)return'';const d=new Date(s);if(isNaN(d))return s;return`${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}`}
 function fmtISO(s){if(!s)return'';const d=new Date(s);if(isNaN(d))return s;return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 function fmtMoney(v){return v!==null&&v!==undefined?'$'+parseFloat(v).toFixed(2):'—'}
 function chCls(ch){return{Amazon:'ch-amazon',eBay:'ch-ebay',Walmart:'ch-walmart',Shopify:'ch-shopify',Etsy:'ch-etsy'}[ch]||'ch-other'}
@@ -880,7 +880,7 @@ function clearAll() {
   setProgress(0);
 }
 
-// ═══ MORNING SYNC ════════════════════════════════════════════════════════════
+// ═══ MORNING SYNC ═══════════════════════════════════════════════════════════
 
 function appendLog(cls, msg) {
   // Alias so runFullSync can push to the sidebar log
@@ -889,7 +889,8 @@ function appendLog(cls, msg) {
 
 async function runFullSync() {
   const btn       = document.getElementById('btnSyncAll');
-  const progBar   = document.getElementById('syncProgBar');  const progFill  = document.getElementById('syncProgFill');
+  const progBar   = document.getElementById('syncProgBar');
+  const progFill  = document.getElementById('syncProgFill');
   const logWrap   = document.getElementById('syncLogWrap');
   const logEl     = document.getElementById('syncLog');
   const summary   = document.getElementById('syncSummary');
@@ -932,7 +933,7 @@ async function runFullSync() {
       const color =
         m.includes('✅') || m.includes('🟢') ? 'var(--ok)' :
         m.includes('❌') ? 'var(--er)' :
-        m.includes('⚠️') ? 'var(--w' :
+        m.includes('⚠️') ? 'var(--w)' :
         m.includes('📦') || m.includes('🚀') || m.includes('📋') || m.includes('⏭') ? 'var(--a)' : null;
       addLine(m, color);
       // Also push to sidebar log
