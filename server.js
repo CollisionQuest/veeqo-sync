@@ -99,6 +99,106 @@ td{padding:8px 12px;border-bottom:1px solid #eee;font-size:13px}
 </body></html>`;
 }
 
+// ─── Gmail fee email parsing (IMAP) ──────────────────────────────────────────
+function grab(text, re) { const m = text.match(re); return m ? m[1].trim() : null; }
+
+function parseFeeText(raw) {
+  const parsed = [], seen = {};
+  // Amazon order IDs: 111-1234567-8901234
+  for (const chunk of raw.split(/(?=\b\d{3}-\d{7}-\d{7}\b)/)) {
+    const m = chunk.match(/\b(\d{3}-\d{7}-\d{7})\b/); if (!m) continue;
+    const orderId = m[1];
+    const fee = { orderId, source: 'amazon',
+      price:      grab(chunk, /(?:Item price|Price)[:\s]+(\$[\d,.]+)/i),
+      tax:        grab(chunk, /\bTax[:\s]+(\$[\d,.]+)/i),
+      shipping:   grab(chunk, /Shipping[:\s]+(\$[\d,.]+)/i),
+      amazonFees: grab(chunk, /Amazon\s*fees?[:\s]+([-]?\$[\d,.]+)/i),
+      mfTax:      grab(chunk, /Marketplace Facilitator Tax[:\s]+([-]?\$[\d,.]+)/i),
+      earnings:   grab(chunk, /Your earnings[:\s]+(\$[\d,.]+)/i),
+    };
+    if ((fee.price || fee.earnings || fee.amazonFees) && !seen[orderId]) { seen[orderId] = 1; parsed.push(fee); }
+  }
+  // eBay order IDs: 12-03456-78901
+  for (const chunk of raw.split(/(?=\b\d{2}-\d{5}-\d{5}\b)/)) {
+    const m = chunk.match(/\b(\d{2}-\d{5}-\d{5})\b/); if (!m) continue;
+    const orderId = m[1]; if (seen[orderId]) continue;
+    const fee = { orderId, source: 'ebay',
+      subtotal:        grab(chunk, /Subtotal[:\s]+\$?([\d,.]+)/i),
+      shipping:        grab(chunk, /Shipping[:\s]+\$?([\d,.]+)/i),
+      salesTax:        grab(chunk, /Sales tax[:\s]+\$?([\d,.]+)/i),
+      orderTotal:      grab(chunk, /Order total[:\s]+\$?([\d,.]+)/i),
+      transactionFees: grab(chunk, /Transaction fees?[:\s]+([-]?\$?[\d,.]+)/i),
+      adFees:          grab(chunk, /Ad Fee[^:\n]*[:\s]+([-]?\$?[\d,.]+)/i),
+      orderEarnings:   grab(chunk, /Order earnings[:\s]+\$?([\d,.]+)/i),
+    };
+    if ((fee.subtotal || fee.orderEarnings || fee.transactionFees) && !seen[orderId]) { seen[orderId] = 1; parsed.push(fee); }
+  }
+  return parsed;
+}
+
+function feeNotes(fee) {
+  const L = ['', '--- Fee Breakdown ---'];
+  if (fee.source === 'ebay') {
+    if (fee.subtotal)        L.push(`Subtotal: ${fee.subtotal}`);
+    if (fee.shipping)        L.push(`Shipping: ${fee.shipping}`);
+    if (fee.salesTax)        L.push(`Sales tax: ${fee.salesTax}`);
+    if (fee.orderTotal)      L.push(`Order total: ${fee.orderTotal}`);
+    if (fee.transactionFees) L.push(`Transaction fees: ${fee.transactionFees}`);
+    if (fee.adFees)          L.push(`Ad Fee: ${fee.adFees}`);
+    if (fee.orderEarnings)   L.push(`Order earnings: ${fee.orderEarnings}`);
+  } else {
+    if (fee.price)      L.push(`Price: ${fee.price}`);
+    if (fee.tax)        L.push(`Tax: ${fee.tax}`);
+    if (fee.shipping)   L.push(`Shipping: ${fee.shipping}`);
+    if (fee.amazonFees) L.push(`Amazon fees: ${fee.amazonFees}`);
+    if (fee.mfTax)      L.push(`Marketplace Facilitator Tax: ${fee.mfTax}`);
+    if (fee.earnings)   L.push(`Your earnings: ${fee.earnings}`);
+  }
+  return L.join('\n');
+}
+
+// Pull recent Amazon/eBay fee-notification emails from Gmail via IMAP.
+// Credentials come from env vars (set in Render): GMAIL_USER, GMAIL_APP_PASSWORD.
+async function fetchGmailFees(send) {
+  const feeMap = {};
+  const user = process.env.GMAIL_USER, pass = process.env.GMAIL_APP_PASSWORD;
+  if (!user || !pass) return feeMap;
+
+  let ImapFlow, simpleParser;
+  try { ({ ImapFlow } = require('imapflow')); ({ simpleParser } = require('mailparser')); }
+  catch (e) { if (send) send('log', { msg: '⚠️  Gmail libs unavailable — skipping fee fetch' }); return feeMap; }
+
+  const lookback = parseInt(process.env.GMAIL_LOOKBACK_DAYS || '10', 10);
+  const since = new Date(Date.now() - lookback * 86400000);
+  const client = new ImapFlow({ host: 'imap.gmail.com', port: 993, secure: true, auth: { user, pass }, logger: false });
+
+  try {
+    await client.connect();
+    const lock = await client.getMailboxLock('INBOX');
+    try {
+      const a = (await client.search({ since, from: 'amazon' }, { uid: true })) || [];
+      const b = (await client.search({ since, from: 'ebay' },   { uid: true })) || [];
+      const uids = [...new Set([...a, ...b])].slice(-300);
+      if (uids.length) {
+        for await (const msg of client.fetch(uids, { source: true }, { uid: true })) {
+          try {
+            const parsed = await simpleParser(msg.source);
+            const html = parsed.html ? String(parsed.html).replace(/<[^>]+>/g, ' ') : '';
+            const text = `${parsed.text || ''}\n${html}`;
+            for (const fee of parseFeeText(text)) if (!feeMap[fee.orderId]) feeMap[fee.orderId] = fee;
+          } catch (pe) { /* skip unparseable message */ }
+        }
+      }
+    } finally { lock.release(); }
+    await client.logout();
+    if (send) send('log', { msg: `📧 Gmail: parsed fees for ${Object.keys(feeMap).length} order(s) (last ${lookback}d)` });
+  } catch (e) {
+    if (send) send('log', { msg: `⚠️  Gmail fee fetch failed: ${String(e.message).slice(0, 140)}` });
+    try { await client.logout(); } catch (x) {}
+  }
+  return feeMap;
+}
+
 // ─── eBay order detail → PDF (for QuickBase "Copy of PO") ─────────────────────
 async function fetchEbayOrder(orderId, token) {
   if (!token) return null;
@@ -244,6 +344,11 @@ app.get('/api/sync/run', async (req, res) => {
       send('log', { msg: `⚠️  Tag lookup failed: ${e.message}` });
     }
 
+    const feeMap = await Promise.race([
+      fetchGmailFees(send),
+      new Promise(res => setTimeout(() => res({}), 30000)),
+    ]).catch(() => ({}));
+
     for (let i = 0; i < toProcess.length; i++) {
       const raw     = toProcess[i];
       const channel = detectChannel(raw);
@@ -258,7 +363,8 @@ app.get('/api/sync/run', async (req, res) => {
         price: parseFloat(li.price || 0),
       }));
       const total = parseFloat(raw.total_price || 0);
-      const notes = buildNotes(channel, orderId, customer, dateRaw, lineItems, total);
+      const fee   = feeMap[orderId];
+      const notes = buildNotes(channel, orderId, customer, dateRaw, lineItems, total) + (fee ? '\n' + feeNotes(fee) : '');
 
       const record = {
         '6':  { value: fmtDate(dateRaw) },
