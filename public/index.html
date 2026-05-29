@@ -114,7 +114,7 @@ input[type=checkbox]{width:13px;height:13px;margin:0;padding:0;accent-color:var(
     <input value="carlgarcia.quickbase.com" readonly>
     <label>Table</label>
     <input value="bvgseawft" readonly>
-    <label>eBay Attachment Field ID <span style="color:var(--m);font-style:normal">(optional)</span></label>
+    <label>QuickBase &quot;Copy of PO&quot; Field ID <span style="color:var(--m);font-style:normal">(for eBay order PDFs)</span></label>
     <input type="text" id="qbAttachField" placeholder="e.g. 55">
     <div class="save-row">
       <button class="btn btn-teal btn-sm" onclick="saveConfig()">Save Credentials</button>
@@ -913,7 +913,12 @@ async function runFullSync() {
 
   const cfg = JSON.parse(localStorage.getItem('ecom_sync') || '{}');
   const attachField = cfg.qbAttachField || document.getElementById('qbAttachField').value || '';
-  const url = `/api/sync/run${attachField ? `?attachField=${encodeURIComponent(attachField)}` : ''}`;
+  const ebayToken   = cfg.ebayToken || document.getElementById('ebayToken').value || '';
+  const params = new URLSearchParams();
+  if (attachField) params.set('attachField', attachField);
+  if (ebayToken)   params.set('ebayToken', ebayToken);
+  const qs = params.toString();
+  const url = `/api/sync/run${qs ? `?${qs}` : ''}`;
 
   function addLine(msg, color) {
     const el = document.createElement('div');
