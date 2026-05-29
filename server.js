@@ -146,6 +146,24 @@ app.get('/api/sync/run', async (req, res) => {
     let pushed = 0, failCount = 0, tagFailed = 0;
     const channelCounts = {};
 
+    // Look up the "Entered into Quickbase" tag ID once — Veeqo's bulk_tagging
+    // endpoint requires tag IDs (the old PUT tag_list approach was silently ignored).
+    let qbTagId = null;
+    try {
+      const tagsR = await fetch('https://api.veeqo.com/tags', { headers: { 'x-api-key': VEEQO_KEY } });
+      if (tagsR.ok) {
+        const allTags = await tagsR.json();
+        const list = Array.isArray(allTags) ? allTags : [];
+        const match = list.find(t => (t.name || '').toLowerCase() === 'entered into quickbase')
+                   || list.find(t => (t.name || '').toLowerCase().includes('quickbase') || t.colour === '#99cc00');
+        if (match) qbTagId = match.id;
+      }
+      if (qbTagId) send('log', { msg: `🏷️  Veeqo tag "Entered into Quickbase" found (id ${qbTagId})` });
+      else send('log', { msg: '⚠️  No "Entered into Quickbase" tag found in Veeqo — orders will not be tagged' });
+    } catch (e) {
+      send('log', { msg: `⚠️  Tag lookup failed: ${e.message}` });
+    }
+
     for (let i = 0; i < toProcess.length; i++) {
       const raw     = toProcess[i];
       const channel = detectChannel(raw);
@@ -218,33 +236,29 @@ app.get('/api/sync/run', async (req, res) => {
           }
         }
 
-        // ── Apply green tag in Veeqo ─────────────────────────────────────────
-        // Use tag_list with TAG NAMES (strings), preserving existing tags
-        try {
-          const existingNames = (raw.tags || [])
-            .map(t => t.name)
-            .filter(n => n && n.toLowerCase() !== 'entered into quickbase');
-          const tagList = [...existingNames, 'Entered into Quickbase'];
+        // ── Apply green tag in Veeqo (POST /bulk_tagging with tag IDs) ──
+        if (qbTagId) {
+          try {
+            const tr = await fetch('https://api.veeqo.com/bulk_tagging', {
+              method: 'POST',
+              headers: {
+                'x-api-key': VEEQO_KEY,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ order_ids: [raw.id], tag_ids: [qbTagId] }),
+            });
 
-          const tr = await fetch(`https://api.veeqo.com/orders/${raw.id}`, {
-            method: 'PUT',
-            headers: {
-              'x-api-key': VEEQO_KEY,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ order: { tag_list: tagList } }),
-          });
-
-          if (tr.ok) {
-            send('log', { msg: `     🟢 Tagged "Entered into Quickbase" in Veeqo` });
-          } else {
-            const errText = await tr.text();
-            send('log', { msg: `     ⚠️  Tag failed (${tr.status}): ${errText.slice(0, 100)}` });
+            if (tr.ok) {
+              send('log', { msg: `     🟢 Tagged "Entered into Quickbase" in Veeqo` });
+            } else {
+              const errText = await tr.text();
+              send('log', { msg: `     ⚠️  Tag failed (${tr.status}): ${errText.slice(0, 100)}` });
+              tagFailed++;
+            }
+          } catch (te) {
+            send('log', { msg: `     ⚠️  Tag error: ${te.message}` });
             tagFailed++;
           }
-        } catch (te) {
-          send('log', { msg: `     ⚠️  Tag error: ${te.message}` });
-          tagFailed++;
         }
 
       } catch (e) {
